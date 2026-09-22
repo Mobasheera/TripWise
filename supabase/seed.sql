@@ -1,2 +1,0 @@
--- supabase/seed.sql
--- Database migration placeholder.

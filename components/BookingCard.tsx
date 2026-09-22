@@ -1,0 +1,1 @@
+export function BookingCard({ title, amount }: { title: string; amount: number }) { return <div className="rounded-xl border bg-white p-5 flex justify-between"><span>{title}</span><b>₹{amount.toLocaleString("en-IN")}</b></div>; }

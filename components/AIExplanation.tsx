@@ -1,0 +1,1 @@
+export function AIExplanation() { return <div className="rounded-2xl border bg-white p-6"><h2 className="font-semibold">AI Settlement Explanation</h2><p className="mt-2 text-slate-600">This section will explain the deterministic settlement result in simple language.</p></div>; }

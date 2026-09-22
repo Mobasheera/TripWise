@@ -1,0 +1,1 @@
+export function PaymentButton({ amount, receiver }: { amount: number; receiver: string }) { return <button className="rounded-lg bg-slate-900 px-5 py-3 text-white">Pay ₹{amount.toLocaleString("en-IN")} to {receiver} via UPI</button>; }

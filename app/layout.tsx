@@ -1,14 +1,12 @@
-import "./globals.css";
 import type { Metadata } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "GroupTrip Ledger",
-  description: "Explainable group-trip expense settlement"
+  description: "Plan trips, split expenses, and settle fairly."
 };
 
-export default function RootLayout({
-  children
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body>{children}</body>

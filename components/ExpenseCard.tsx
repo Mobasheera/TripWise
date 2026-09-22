@@ -1,0 +1,1 @@
+export function ExpenseCard({ title, amount, payer }: { title: string; amount: number; payer: string }) { return <div className="rounded-xl border bg-white p-5 flex justify-between"><div><b>{title}</b><p className="text-sm text-slate-500">Paid by {payer}</p></div><b>₹{amount.toLocaleString("en-IN")}</b></div>; }

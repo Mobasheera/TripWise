@@ -1,2 +1,0 @@
--- supabase/migrations/002_create_trips.sql
--- Database migration placeholder.

@@ -1,0 +1,1 @@
+export function BillScanner() { return <div className="rounded-2xl border bg-white p-5"><h2 className="font-semibold">AI Bill Scanner</h2><p className="mt-2 text-sm text-slate-500">Upload a receipt to extract merchant, items, tax and total.</p><button className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-white">Upload Bill</button></div>; }

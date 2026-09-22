@@ -1,2 +1,0 @@
--- supabase/migrations/001_create_profiles.sql
--- Database migration placeholder.

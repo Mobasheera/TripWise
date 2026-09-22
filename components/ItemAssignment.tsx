@@ -1,0 +1,1 @@
+export function ItemAssignment() { return <div className="rounded-xl border bg-white p-5"><h2 className="font-semibold">Assign Items</h2><p className="mt-2 text-sm text-slate-500">Map each receipt item to the participants who consumed it.</p></div>; }

@@ -1,2 +1,0 @@
--- supabase/migrations/006_create_bills.sql
--- Database migration placeholder.
