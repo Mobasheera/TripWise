@@ -1,0 +1,2 @@
+-- supabase/migrations/008_create_item_participants.sql
+-- Database migration placeholder.

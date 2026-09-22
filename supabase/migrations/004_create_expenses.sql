@@ -1,0 +1,2 @@
+-- supabase/migrations/004_create_expenses.sql
+-- Database migration placeholder.

@@ -1,0 +1,2 @@
+-- supabase/migrations/009_create_payments.sql
+-- Database migration placeholder.

@@ -1,0 +1,2 @@
+-- supabase/migrations/005_create_expense_splits.sql
+-- Database migration placeholder.

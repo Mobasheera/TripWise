@@ -1,0 +1,2 @@
+-- supabase/migrations/003_create_trip_members.sql
+-- Database migration placeholder.
