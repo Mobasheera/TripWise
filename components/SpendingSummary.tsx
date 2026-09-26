@@ -15,7 +15,7 @@ import {
   TrendingUp,
   WalletCards,
 } from "lucide-react";
-import { getSupabase } from "@/lib/supabase";
+import { getAccessibleTrips } from "@/lib/tripAccess";
 import TripSidebar from "@/components/TripSidebar";
 
 type Trip = {
@@ -114,17 +114,7 @@ export default function SpendingSummary({
       setLoadingTrips(true);
       setError("");
 
-      const supabase = getSupabase();
-      const { data, error: tripError } = await supabase
-        .from("trips")
-        .select(
-          "id, name, destination, start_date, end_date, created_at"
-        )
-        .order("created_at", { ascending: false });
-
-      if (tripError) throw tripError;
-
-      const loadedTrips = (data || []) as Trip[];
+      const loadedTrips = await getAccessibleTrips();
       setTrips(loadedTrips);
 
       if (loadedTrips.length === 0) {
@@ -142,6 +132,8 @@ export default function SpendingSummary({
       }
     } catch (err) {
       console.error("Summary trip loading error:", err);
+      setTrips([]);
+      setSelectedTripId("");
       setError(
         err instanceof Error
           ? err.message
@@ -285,7 +277,7 @@ export default function SpendingSummary({
   }
 
   return (
-    <SummaryFrame activeTripId={initialTripId}>
+    <SummaryFrame activeTripId={selectedTripId || undefined}>
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div
           className="absolute inset-0 opacity-50"
@@ -393,6 +385,42 @@ export default function SpendingSummary({
                 <p className="text-sm text-[#8b877d]">
                   {tripDates(selectedTrip)}
                 </p>
+              </div>
+
+              <div className="mb-6 flex flex-wrap gap-2">
+                <Link
+                  href={`/trip/${selectedTripId}`}
+                  className="rounded-full border border-[#292a25]/10 bg-white px-4 py-2 text-xs font-bold text-[#5e5a52] transition hover:bg-[#ece8dd] hover:text-[#191a18]"
+                >
+                  Overview
+                </Link>
+                <Link
+                  href={`/trip/${selectedTripId}/expenses`}
+                  className="rounded-full border border-[#292a25]/10 bg-white px-4 py-2 text-xs font-bold text-[#5e5a52] transition hover:bg-[#ece8dd] hover:text-[#191a18]"
+                >
+                  Expenses
+                </Link>
+                <Link
+                  href={`/trip/${selectedTripId}/bookings`}
+                  className="rounded-full border border-[#292a25]/10 bg-white px-4 py-2 text-xs font-bold text-[#5e5a52] transition hover:bg-[#ece8dd] hover:text-[#191a18]"
+                >
+                  Bookings
+                </Link>
+                <Link
+                  href={`/trip/${selectedTripId}/itinerary`}
+                  className="rounded-full border border-[#292a25]/10 bg-white px-4 py-2 text-xs font-bold text-[#5e5a52] transition hover:bg-[#ece8dd] hover:text-[#191a18]"
+                >
+                  Itinerary
+                </Link>
+                <Link
+                  href={`/trip/${selectedTripId}/settlement`}
+                  className="rounded-full border border-[#292a25]/10 bg-white px-4 py-2 text-xs font-bold text-[#5e5a52] transition hover:bg-[#ece8dd] hover:text-[#191a18]"
+                >
+                  Settlement
+                </Link>
+                <span className="rounded-full bg-[#191a18] px-4 py-2 text-xs font-bold text-white">
+                  Spending Summary
+                </span>
               </div>
 
               {loadingSummary ? (
