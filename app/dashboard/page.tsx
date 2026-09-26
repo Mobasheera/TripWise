@@ -14,11 +14,13 @@ import {
   MapPin,
   Menu,
   Plus,
+  PieChart,
   Receipt,
   RefreshCw,
   Settings,
   Sparkles,
   Ticket,
+  User,
   Users,
   Utensils,
   WalletCards,
@@ -1114,6 +1116,12 @@ export default function DashboardPage() {
               My Trips
             </SidebarItem>
 
+            <SidebarItem
+              href="/summary"
+              icon={<PieChart size={19} />}
+            >
+              Trip Summary
+            </SidebarItem>
           </nav>
 
           {/* TRAVEL CARD */}
@@ -1202,13 +1210,40 @@ export default function DashboardPage() {
               </SidebarItem>
 
               <SidebarItem
-                href="/settings"
-                icon={
-                  <Settings size={18} />
-                }
-              >
-                Settings
-              </SidebarItem>
+              href="/dashboard"
+              icon={<LayoutDashboard size={18} />}
+              active
+            >
+              Dashboard
+            </SidebarItem>
+
+            <SidebarItem
+              href={myTripsHref}
+              icon={<MapPin size={18} />}
+            >
+              My Trips
+            </SidebarItem>
+
+            <SidebarItem
+              href="/summary"
+              icon={<PieChart size={18} />}
+            >
+              Trip Summary
+            </SidebarItem>
+
+            <SidebarItem
+              href="/profile"
+              icon={<User size={18} />}
+            >
+              Profile
+            </SidebarItem>
+
+            <SidebarItem
+              href="/settings"
+              icon={<Settings size={18} />}
+            >
+              Settings
+            </SidebarItem>
 
             </div>
           </div>
