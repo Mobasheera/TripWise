@@ -10,6 +10,8 @@ import {
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
+import { openGooglePayPayment } from "@/lib/upi";
+
 import {
   ArrowLeft,
   ArrowRight,
@@ -849,6 +851,22 @@ function TransferCard({
   paying: boolean;
   onPay: () => void;
 }) {
+  const canPayWithUpi = Boolean(
+    transfer.toUpiId?.trim()
+  );
+
+  function handleUpiPayment() {
+    if (!transfer.toUpiId) {
+      return;
+    }
+
+    openGooglePayPayment({
+      payeeUpiId: transfer.toUpiId,
+      payeeName: transfer.to,
+      amount: transfer.amount,
+    });
+  }
+
   return (
     <div className="rounded-[24px] border border-[#292a25]/8 bg-white p-4 md:p-5">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -890,57 +908,80 @@ function TransferCard({
             )}
           </p>
 
-          <button
-            type="button"
-            onClick={onPay}
-            disabled={paying}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-[#191a18] px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#2b302c] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {paying ? (
-              <>
-                <Loader2
-                  size={15}
-                  className="animate-spin"
-                />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleUpiPayment}
+              disabled={!canPayWithUpi || paying}
+              title={
+                canPayWithUpi
+                  ? "Open Google Pay with the receiver and amount filled in"
+                  : "Receiver has not added a UPI ID"
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-[#355244]/25 bg-[#edf3eb] px-5 py-3 text-sm font-bold text-[#355244] transition hover:-translate-y-0.5 hover:bg-[#e3eee1] disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <UpiIcon size={16} />
 
-                Saving...
-              </>
-            ) : (
-              <>
-                <Check size={15} />
+              Pay using UPI
+            </button>
 
-                Mark as paid
-              </>
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={onPay}
+              disabled={paying}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#191a18] px-5 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#2b302c] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {paying ? (
+                <>
+                  <Loader2
+                    size={15}
+                    className="animate-spin"
+                  />
+
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Check size={15} />
+
+                  Mark as paid
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
-      {(transfer.fromUpiId ||
-        transfer.toUpiId) && (
+      {transfer.toUpiId && (
         <div className="mt-4 border-t border-[#292a25]/8 pt-4 text-xs text-[#817d74]">
-          <div className="flex flex-wrap gap-x-5 gap-y-1">
-            {transfer.fromUpiId && (
-              <span>
-                Payer UPI:{" "}
-                <b>
-                  {transfer.fromUpiId}
-                </b>
-              </span>
-            )}
-
-            {transfer.toUpiId && (
-              <span>
-                Receiver UPI:{" "}
-                <b>
-                  {transfer.toUpiId}
-                </b>
-              </span>
-            )}
-          </div>
+          <span>
+            Receiver UPI:{" "}
+            <b>
+              {transfer.toUpiId}
+            </b>
+          </span>
         </div>
       )}
     </div>
+  );
+}
+
+function UpiIcon({
+  size = 16,
+}: {
+  size?: number;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex shrink-0 items-center justify-center rounded-[4px] border border-current px-[2px] py-[1px] text-[8px] font-black leading-none tracking-[-.04em]"
+      style={{
+        width: size,
+        height: size,
+      }}
+    >
+      UPI
+    </span>
   );
 }
 
