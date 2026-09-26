@@ -11,14 +11,21 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.57.0",
+    "@supabase/supabase-js": "^2.117.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/three": "^0.186.0",
     "lucide-react": "^0.468.0",
     "next": "^15.5.0",
+    "pdfjs-dist": "^6.3.289",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "zod": "^3.25.0"
+    "react-globe.gl": "^2.38.0",
+    "tailwindcss": "^4.3.3",
+    "three": "^0.186.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
