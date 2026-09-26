@@ -434,7 +434,7 @@ export async function saveProfile(
 
     cleanUpiId =
       data.upi_id?.trim() ||
-      null;
+      "Cash";
   }
 
   const metadata = (user.user_metadata ?? {}) as Record<
