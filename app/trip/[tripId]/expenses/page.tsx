@@ -4,6 +4,7 @@ import {
   FormEvent,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -14,6 +15,7 @@ import {
   ArrowLeft,
   Car,
   Check,
+  ChevronDown,
   ChevronRight,
   CircleDollarSign,
   Hotel,
@@ -77,6 +79,42 @@ function formatMoney(value: number) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   })}`;
+}
+
+const CATEGORY_OPTIONS = [
+  {
+    value: "Food",
+    description: "Meals, cafes & restaurants",
+    icon: Utensils,
+  },
+  {
+    value: "Hotel",
+    description: "Hotels, stays & rooms",
+    icon: Hotel,
+  },
+  {
+    value: "Transport",
+    description: "Taxi, train & travel",
+    icon: Car,
+  },
+  {
+    value: "Activity",
+    description: "Tickets & experiences",
+    icon: Ticket,
+  },
+  {
+    value: "Other",
+    description: "Anything else",
+    icon: Receipt,
+  },
+] as const;
+
+function getCategoryOption(category: string) {
+  return (
+    CATEGORY_OPTIONS.find(
+      (option) => option.value === category
+    ) || CATEGORY_OPTIONS[0]
+  );
 }
 
 function getExpenseIcon(category: string | null) {
@@ -210,6 +248,18 @@ export default function ExpensesPage() {
   const [category, setCategory] =
     useState("Food");
 
+  const [categoryOpen, setCategoryOpen] =
+    useState(false);
+
+  const categoryMenuRef =
+    useRef<HTMLDivElement>(null);
+
+  const selectedCategory =
+    getCategoryOption(category);
+
+  const SelectedCategoryIcon =
+    selectedCategory.icon;
+
   const [paidBy, setPaidBy] = useState("");
 
   const [selectedParticipants, setSelectedParticipants] =
@@ -239,6 +289,45 @@ export default function ExpensesPage() {
     loadTrip();
     loadExpenses();
   }, [tripId]);
+
+  useEffect(() => {
+    function handleCategoryMenu(event: MouseEvent) {
+      if (
+        categoryMenuRef.current &&
+        !categoryMenuRef.current.contains(
+          event.target as Node
+        )
+      ) {
+        setCategoryOpen(false);
+      }
+    }
+
+    function handleCategoryKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setCategoryOpen(false);
+      }
+    }
+
+    document.addEventListener(
+      "mousedown",
+      handleCategoryMenu
+    );
+    document.addEventListener(
+      "keydown",
+      handleCategoryKey
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleCategoryMenu
+      );
+      document.removeEventListener(
+        "keydown",
+        handleCategoryKey
+      );
+    };
+  }, []);
 
   async function loadTrip() {
     try {
@@ -965,31 +1054,145 @@ export default function ExpensesPage() {
                     Category
                   </label>
 
-                  <select
-                    value={category}
-                    onChange={(event) =>
-                      setCategory(
-                        event.target.value
-                      )
-                    }
-                    className="w-full rounded-2xl border border-[#292a25]/12 bg-white px-4 py-3.5 text-sm outline-none transition focus:border-[#355244]/40 focus:ring-4 focus:ring-[#355244]/5"
+                  <div
+                    ref={categoryMenuRef}
+                    className="relative"
                   >
-                    <option>
-                      Food
-                    </option>
-                    <option>
-                      Hotel
-                    </option>
-                    <option>
-                      Transport
-                    </option>
-                    <option>
-                      Activity
-                    </option>
-                    <option>
-                      Other
-                    </option>
-                  </select>
+                    <>
+                      <button
+                        type="button"
+                        aria-haspopup="listbox"
+                        aria-expanded={
+                          categoryOpen
+                        }
+                        onClick={() =>
+                          setCategoryOpen(
+                            (open) => !open
+                          )
+                        }
+                        className={`flex w-full items-center justify-between gap-3 rounded-2xl border bg-white px-3 py-2.5 text-left outline-none transition ${
+                          categoryOpen
+                            ? "border-[#355244]/40 ring-4 ring-[#355244]/5"
+                            : "border-[#292a25]/12 hover:border-[#355244]/25"
+                        }`}
+                      >
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#e8e5d9] text-[#355244]">
+                            <SelectedCategoryIcon
+                              size={17}
+                            />
+                          </span>
+
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-semibold text-[#292a25]">
+                              {selectedCategory.value}
+                            </span>
+                            <span className="block truncate text-[10px] text-[#aaa59a]">
+                              {selectedCategory.description}
+                            </span>
+                          </span>
+                        </span>
+
+                        <ChevronDown
+                          size={17}
+                          className={`shrink-0 text-[#817d74] transition-transform ${
+                            categoryOpen
+                              ? "rotate-180"
+                              : "rotate-0"
+                          }`}
+                        />
+                      </button>
+
+                      {categoryOpen && (
+                        <div
+                          role="listbox"
+                          aria-label="Expense category"
+                          className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 overflow-hidden rounded-[20px] border border-[#292a25]/10 bg-[#fbf8ef] p-1.5 shadow-[0_18px_45px_rgba(41,42,37,0.14)]"
+                        >
+                          <div className="px-3 pb-2 pt-2">
+                            <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#927543]">
+                              Expense category
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-[#aaa59a]">
+                              What kind of expense is this?
+                            </p>
+                          </div>
+
+                          <div className="space-y-1">
+                            {CATEGORY_OPTIONS.map(
+                              (option) => {
+                                const Icon =
+                                  option.icon;
+                                const selectedOption =
+                                  option.value ===
+                                  category;
+
+                                return (
+                                  <button
+                                    key={
+                                      option.value
+                                    }
+                                    type="button"
+                                    role="option"
+                                    aria-selected={
+                                      selectedOption
+                                    }
+                                    onClick={() => {
+                                      setCategory(
+                                        option.value
+                                      );
+                                      setCategoryOpen(
+                                        false
+                                      );
+                                    }}
+                                    className={`group flex w-full items-center gap-3 rounded-[14px] px-2.5 py-2 text-left transition ${
+                                      selectedOption
+                                        ? "bg-[#355244] text-white"
+                                        : "text-[#292a25] hover:bg-[#ece8dd]"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition ${
+                                        selectedOption
+                                          ? "bg-white/10 text-white"
+                                          : "bg-[#e8e5d9] text-[#355244] group-hover:bg-[#ddd9cb]"
+                                      }`}
+                                    >
+                                      <Icon
+                                        size={16}
+                                      />
+                                    </span>
+
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block text-xs font-bold">
+                                        {option.value}
+                                      </span>
+                                      <span
+                                        className={`mt-0.5 block truncate text-[10px] ${
+                                          selectedOption
+                                            ? "text-white/60"
+                                            : "text-[#9b968b]"
+                                        }`}
+                                      >
+                                        {option.description}
+                                      </span>
+                                    </span>
+
+                                    {selectedOption && (
+                                      <Check
+                                        size={15}
+                                        className="shrink-0"
+                                      />
+                                    )}
+                                  </button>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  </div>
                 </div>
               </div>
 
