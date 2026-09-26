@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import AIAssistant from "@/components/ai/AIAssistant";
 
 export const metadata: Metadata = {
   title: "TripWise — Make the trip memorable, not the math.",
@@ -15,7 +16,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <AIAssistant />
+      </body>
     </html>
   );
 }

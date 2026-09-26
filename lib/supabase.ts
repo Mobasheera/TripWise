@@ -56,6 +56,7 @@ export function getSupabaseBrowser() {
  *
  * Keep this export because existing pages use getSupabase().
  */
+
 export function getSupabase() {
   return getSupabaseBrowser();
 }
@@ -168,6 +169,16 @@ export async function getAuthenticatedUser(): Promise<{
   } = await supabase.auth.getUser();
 
   if (authError) {
+    const message = authError.message?.toLowerCase() || "";
+
+    if (
+      message.includes("auth session missing") ||
+      message.includes("session missing") ||
+      message.includes("not authenticated")
+    ) {
+      throw new Error("You need to sign in first.");
+    }
+
     throw authError;
   }
 
@@ -198,15 +209,15 @@ export async function getAuthenticatedUser(): Promise<{
     },
 
     profile: profile
-    ? {
-        id: profile.id,
-        email: profile.email ?? user.email ?? "",
-        name: profile.name ?? "",
-        avatar: profile.avatar_url ?? "",
-        avatar_url: profile.avatar_url ?? "",
-        upi_id: profile.upi_id ?? null,
-      }
-    : null,
+      ? {
+          id: profile.id,
+          email: profile.email ?? user.email ?? "",
+          name: profile.name ?? "",
+          avatar: profile.avatar_url ?? "",
+          avatar_url: profile.avatar_url ?? "",
+          upi_id: profile.upi_id ?? null,
+        }
+      : null,
   };
 }
 
@@ -215,30 +226,109 @@ export async function getAuthenticatedUser(): Promise<{
  * Current authenticated TripWise user
  * ---------------------------------------------------------------------------
  *
- * Existing TripWise pages use this function.
+ * Returns null when there is no active session.
  *
- * Unlike getAuthenticatedUser(), this function requires the application
- * profile to exist.
+ * If a session exists but the profile does not exist yet, the profile is
+ * created automatically from the authenticated user's metadata.
  */
 
-export async function getCurrentUser(): Promise<AuthProfile> {
-  const { user, profile } = await getAuthenticatedUser();
+export async function getCurrentUser(): Promise<AuthProfile | null> {
+  const supabase = getSupabaseBrowser();
 
-  if (!profile) {
-    throw new Error(
-      "Your TripWise profile is not complete yet.",
-    );
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) {
+    const message = authError.message?.toLowerCase() || "";
+
+    if (
+      message.includes("auth session missing") ||
+      message.includes("session missing") ||
+      message.includes("not authenticated")
+    ) {
+      return null;
+    }
+
+    throw authError;
   }
 
-  const avatar =
-  profile.avatar || getMetadataAvatar(user.metadata);
+  if (!user) {
+    return null;
+  }
+
+  const metadata = (user.user_metadata ?? {}) as Record<
+    string,
+    unknown
+  >;
+
+  const name = getMetadataName(metadata);
+  const email = user.email ?? "";
+  const avatar = getMetadataAvatar(metadata);
+
+  const {
+    data: profile,
+    error: profileError,
+  } = await supabase
+    .from("profiles")
+    .select("id, name, email, avatar_url, upi_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    throw profileError;
+  }
+
+  /**
+   * First login:
+   *
+   * Google authentication succeeded but there is no TripWise profile yet.
+   */
+
+  if (!profile) {
+    const {
+      data: newProfile,
+      error: insertError,
+    } = await supabase
+      .from("profiles")
+      .insert({
+        id: user.id,
+        name,
+        email,
+        avatar_url: avatar || null,
+        upi_id: null,
+      })
+      .select("id, name, email, avatar_url, upi_id")
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    return {
+      id: user.id,
+      email,
+      name,
+      avatar: newProfile.avatar_url ?? avatar,
+      avatar_url: newProfile.avatar_url ?? avatar,
+      upi_id: newProfile.upi_id ?? null,
+    };
+  }
+
+  /**
+   * Existing TripWise profile.
+   */
+
+  const finalAvatar =
+    profile.avatar_url || avatar;
 
   return {
     id: user.id,
-    email: profile.email || user.email,
-    name: profile.name || getMetadataName(user.metadata),
-    avatar,
-    avatar_url: avatar,
+    email: profile.email || email,
+    name: profile.name || name,
+    avatar: finalAvatar,
+    avatar_url: finalAvatar,
     upi_id: profile.upi_id ?? null,
   };
 }
@@ -248,15 +338,10 @@ export async function getCurrentUser(): Promise<AuthProfile> {
  * Save complete profile
  * ---------------------------------------------------------------------------
  *
- * Existing TripWise profile functionality.
+ * Supports both:
  *
- * Supports:
- * - name
- * - email
- * - avatar_url
- * - UPI ID
- *
- * If the profile does not exist, it creates one.
+ * 1. First/last-name onboarding
+ * 2. Existing TripWise profile editing
  */
 
 export async function saveProfile(
@@ -271,7 +356,7 @@ export async function saveProfile(
         email?: string | null;
         avatar_url?: string | null;
         upi_id?: string | null;
-      }
+      },
 ) {
   const supabase = getSupabaseBrowser();
 
@@ -281,6 +366,16 @@ export async function saveProfile(
   } = await supabase.auth.getUser();
 
   if (authError) {
+    const message = authError.message?.toLowerCase() || "";
+
+    if (
+      message.includes("auth session missing") ||
+      message.includes("session missing") ||
+      message.includes("not authenticated")
+    ) {
+      throw new Error("You need to sign in first.");
+    }
+
     throw authError;
   }
 
@@ -293,7 +388,10 @@ export async function saveProfile(
   let cleanAvatar: string | null = null;
   let cleanUpiId: string | null = null;
 
-  // New onboarding profile page
+  /**
+   * New onboarding profile page.
+   */
+
   if ("firstName" in data) {
     const cleanFirstName = data.firstName.trim();
     const cleanLastName = data.lastName.trim();
@@ -302,12 +400,17 @@ export async function saveProfile(
       throw new Error("Please enter your first and last name.");
     }
 
-    cleanName = `${cleanFirstName} ${cleanLastName}`.trim();
+    cleanName =
+      `${cleanFirstName} ${cleanLastName}`.trim();
 
-    cleanAvatar = data.avatarUrl?.trim() || null;
+    cleanAvatar =
+      data.avatarUrl?.trim() || null;
   }
 
-  // Existing TripWise profile page
+  /**
+   * Existing TripWise profile page.
+   */
+
   else {
     cleanName = data.name.trim();
 
@@ -315,12 +418,24 @@ export async function saveProfile(
       throw new Error("Please enter your name.");
     }
 
-    cleanEmail = data.email?.trim() || user.email || "";
-    cleanAvatar = data.avatar_url?.trim() || null;
-    cleanUpiId = data.upi_id?.trim() || null;
+    cleanEmail =
+      data.email?.trim() ||
+      user.email ||
+      "";
+
+    cleanAvatar =
+      data.avatar_url?.trim() ||
+      null;
+
+    cleanUpiId =
+      data.upi_id?.trim() ||
+      null;
   }
 
-  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const metadata = (user.user_metadata ?? {}) as Record<
+    string,
+    unknown
+  >;
 
   const metadataAvatar = getMetadataAvatar(metadata);
 
@@ -328,28 +443,42 @@ export async function saveProfile(
     cleanAvatar = metadataAvatar || null;
   }
 
-  const { data: updatedProfile, error: updateError } = await supabase
+  const {
+    data: updatedProfile,
+    error: updateError,
+  } = await supabase
     .from("profiles")
     .update({
       name: cleanName,
       email: cleanEmail,
       avatar_url: cleanAvatar,
-      ...(cleanUpiId !== null ? { upi_id: cleanUpiId } : {}),
+      upi_id: cleanUpiId,
     })
     .eq("id", user.id)
     .select("id, name, email, avatar_url, upi_id")
     .maybeSingle();
 
   if (updateError) {
-    console.error("Profile update failed:", updateError);
+    console.error(
+      "Profile update failed:",
+      updateError,
+    );
+
     throw new Error(
-      updateError.message || "Unable to save your profile."
+      updateError.message ||
+        "Unable to save your profile.",
     );
   }
 
-  // If the profile doesn't exist yet, create it.
+  /**
+   * If the profile doesn't exist yet, create it.
+   */
+
   if (!updatedProfile) {
-    const { data: insertedProfile, error: insertError } = await supabase
+    const {
+      data: insertedProfile,
+      error: insertError,
+    } = await supabase
       .from("profiles")
       .insert({
         id: user.id,
@@ -362,9 +491,14 @@ export async function saveProfile(
       .single();
 
     if (insertError) {
-      console.error("Profile insert failed:", insertError);
+      console.error(
+        "Profile insert failed:",
+        insertError,
+      );
+
       throw new Error(
-        insertError.message || "Unable to create your profile."
+        insertError.message ||
+          "Unable to create your profile.",
       );
     }
 
@@ -378,11 +512,6 @@ export async function saveProfile(
  * ---------------------------------------------------------------------------
  * Auth-architecture profile onboarding
  * ---------------------------------------------------------------------------
- *
- * Used by the new onboarding/profile page.
- *
- * Keeps first-name / last-name handling from auth-architecture while
- * preserving the existing TripWise profiles table.
  */
 
 export async function saveProfileName({
@@ -423,7 +552,8 @@ export async function saveProfileName({
     unknown
   >;
 
-  const metadataAvatar = getMetadataAvatar(metadata);
+  const metadataAvatar =
+    getMetadataAvatar(metadata);
 
   const { error } = await supabase
     .from("profiles")
@@ -436,7 +566,6 @@ export async function saveProfileName({
           avatarUrl ||
           metadataAvatar ||
           null,
-        upi_id: null,
       },
       {
         onConflict: "id",
@@ -456,9 +585,6 @@ export async function saveProfileName({
  * Supports:
  * - a real UPI ID
  * - "cash"
- *
- * The value is stored in profiles.upi_id because that is the field used
- * by the existing TripWise schema.
  */
 
 export async function saveUpiId(upiId: string) {
@@ -470,11 +596,26 @@ export async function saveUpiId(upiId: string) {
   } = await supabase.auth.getUser();
 
   if (authError) {
+    const message =
+      authError.message?.toLowerCase() || "";
+
+    if (
+      message.includes("auth session missing") ||
+      message.includes("session missing") ||
+      message.includes("not authenticated")
+    ) {
+      throw new Error(
+        "You need to sign in first.",
+      );
+    }
+
     throw authError;
   }
 
   if (!user) {
-    throw new Error("You need to sign in first.");
+    throw new Error(
+      "You need to sign in first.",
+    );
   }
 
   const cleanValue = upiId.trim();
@@ -534,7 +675,9 @@ export async function clearUpiId() {
   }
 
   if (!user) {
-    throw new Error("You need to sign in first.");
+    throw new Error(
+      "You need to sign in first.",
+    );
   }
 
   const { error } = await supabase
@@ -558,7 +701,8 @@ export async function clearUpiId() {
 export async function signOut() {
   const supabase = getSupabaseBrowser();
 
-  const { error } = await supabase.auth.signOut();
+  const { error } =
+    await supabase.auth.signOut();
 
   if (error) {
     throw error;

@@ -69,10 +69,9 @@ export function openGooglePayPayment({
     return;
   }
 
-  window.location.href =
-    createGooglePayPaymentLink({
-      payeeUpiId,
-      payeeName,
-      amount,
-    });
+  window.location.href = createGooglePayPaymentLink({
+    payeeUpiId,
+    payeeName,
+    amount,
+  });
 }
