@@ -1,15 +1,24 @@
-import type { Metadata } from "next";
+// @ts-expect-error Next.js processes this stylesheet import at build time.
 import "./globals.css";
 
-export const metadata: Metadata = {
+import AIAssistant from "@/components/ai/AIAssistant";
+
+export const metadata = {
   title: "GroupTrip Ledger",
-  description: "Plan trips, split expenses, and settle fairly."
+  description: "Plan trips, split expenses and settle payments.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>{children}
+
+        <AIAssistant />
+      </body>
     </html>
   );
 }

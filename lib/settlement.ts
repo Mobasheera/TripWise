@@ -1,26 +1,90 @@
-export type Balance = { participantId: string; amount: number };
+export type Balance = {
+  userId: string;
+  amount: number;
+};
 
-export function calculateBalances(paid: Record<string, number>, owed: Record<string, number>) {
-  const ids = new Set([...Object.keys(paid), ...Object.keys(owed)]);
-  return [...ids].map((id) => ({
-    participantId: id,
-    amount: (paid[id] ?? 0) - (owed[id] ?? 0)
-  }));
-}
+export type Settlement = {
+  from: string;
+  to: string;
+  amount: number;
+};
 
-export function minimumTransactions(balances: Balance[]) {
-  const creditors = balances.filter((b) => b.amount > 0.01).map((b) => ({...b}));
-  const debtors = balances.filter((b) => b.amount < -0.01).map((b) => ({...b}));
-  const result: { from: string; to: string; amount: number }[] = [];
-  let i = 0, j = 0;
+export function minimizeTransactions(
+  balances: Balance[]
+): Settlement[] {
+  const creditors = balances
+    .filter(
+      (balance) =>
+        balance.amount > 0.009
+    )
+    .map((balance) => ({
+      ...balance,
+    }))
+    .sort(
+      (a, b) =>
+        b.amount - a.amount
+    );
 
-  while (i < debtors.length && j < creditors.length) {
-    const amount = Math.min(-debtors[i].amount, creditors[j].amount);
-    result.push({ from: debtors[i].participantId, to: creditors[j].participantId, amount });
-    debtors[i].amount += amount;
-    creditors[j].amount -= amount;
-    if (Math.abs(debtors[i].amount) < 0.01) i++;
-    if (Math.abs(creditors[j].amount) < 0.01) j++;
+  const debtors = balances
+    .filter(
+      (balance) =>
+        balance.amount < -0.009
+    )
+    .map((balance) => ({
+      ...balance,
+    }))
+    .sort(
+      (a, b) =>
+        a.amount - b.amount
+    );
+
+  const result: Settlement[] = [];
+
+  let debtorIndex = 0;
+  let creditorIndex = 0;
+
+  while (
+    debtorIndex <
+      debtors.length &&
+    creditorIndex <
+      creditors.length
+  ) {
+    const debtor =
+      debtors[debtorIndex];
+
+    const creditor =
+      creditors[creditorIndex];
+
+    const amount = Number(
+      Math.min(
+        Math.abs(debtor.amount),
+        creditor.amount
+      ).toFixed(2)
+    );
+
+    result.push({
+      from: debtor.userId,
+      to: creditor.userId,
+      amount,
+    });
+
+    debtor.amount += amount;
+    creditor.amount -= amount;
+
+    if (
+      Math.abs(debtor.amount) <
+      0.01
+    ) {
+      debtorIndex++;
+    }
+
+    if (
+      Math.abs(creditor.amount) <
+      0.01
+    ) {
+      creditorIndex++;
+    }
   }
+
   return result;
 }
