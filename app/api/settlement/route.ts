@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-type MemberProfile = {
+type Profile = {
   id: string;
   name: string | null;
   email: string | null;
@@ -15,24 +15,7 @@ type Member = {
   trip_id: string;
   user_id: string;
   role: string | null;
-
-  /*
-   * Supabase can return a single related profile
-   * OR an array depending on the relationship.
-   *
-   * We support both without changing the
-   * existing settlement behavior.
-   */
-  profiles:
-    | MemberProfile
-    | MemberProfile[]
-    | null;
-
-  /*
-   * Keep compatibility with the existing code
-   * if another query/version returns `profile`.
-   */
-  profile?: MemberProfile | null;
+  profiles?: Profile | Profile[] | null;
 };
 
 type Expense = {
@@ -67,16 +50,9 @@ type Payment = {
 
 type Balance = {
   memberId: string;
-
-  /*
-   * This is now always resolved from
-   * the member's profile whenever possible.
-   */
   name: string;
-
   email: string;
   upiId: string | null;
-
   paid: number;
   owed: number;
   net: number;
@@ -85,128 +61,31 @@ type Balance = {
 type Transfer = {
   from: string;
   fromId: string;
-
   to: string;
   toId: string;
-
   amount: number;
-
   fromUpiId: string | null;
   toUpiId: string | null;
 };
 
-/* =========================================================
-   MONEY HELPERS
-   ========================================================= */
-
 function roundMoney(value: number) {
-  return (
-    Math.round(
-      (value + Number.EPSILON) * 100
-    ) / 100
-  );
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
-
-/* =========================================================
-   PROFILE HELPER
-   ========================================================= */
-
-/*
- * Supabase relationship results can sometimes come back
- * as:
- *
- * profiles: { ... }
- *
- * or:
- *
- * profiles: [{ ... }]
- *
- * This helper handles both.
- */
-function resolveMemberProfile(
-  member: Member
-): MemberProfile | null {
-  if (member.profile) {
-    return member.profile;
-  }
-
-  if (Array.isArray(member.profiles)) {
-    return member.profiles[0] || null;
-  }
-
-  return member.profiles || null;
-}
-
-/*
- * Resolve a useful display name.
- *
- * Priority:
- *
- * 1. profiles.name
- * 2. email username
- * 3. Traveler
- *
- * This means real names such as:
- *
- * Rahul Sharma
- * Priya
- * Arjun
- * Sneha
- *
- * will be displayed instead of Traveler 1,
- * Traveler 2, etc.
- */
-function resolveMemberName(
-  member: Member
-) {
-  const profile =
-    resolveMemberProfile(member);
-
-  const name =
-    profile?.name?.trim();
-
-  if (name) {
-    return name;
-  }
-
-  const email =
-    profile?.email?.trim();
-
-  if (email) {
-    const emailName =
-      email.split("@")[0]?.trim();
-
-    if (emailName) {
-      return emailName;
-    }
-  }
-
-  return "Traveler";
-}
-
-/* =========================================================
-   SUPABASE
-   ========================================================= */
 
 function getSupabase() {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env
-      .NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-      process.env
-        .NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         async getAll() {
-          const cookieStore =
-            await cookies();
-
+          const cookieStore = await cookies();
           return cookieStore.getAll();
         },
 
         async setAll(cookiesToSet) {
-          const cookieStore =
-            await cookies();
+          const cookieStore = await cookies();
 
           try {
             cookiesToSet.forEach(
@@ -223,20 +102,14 @@ function getSupabase() {
               }
             );
           } catch {
-            /*
-             * Cookie writes can fail in some
-             * server-component contexts.
-             */
+            // Cookie writes can fail in some
+            // server-component contexts.
           }
         },
       },
     }
   );
 }
-
-/* =========================================================
-   LOAD SETTLEMENT
-   ========================================================= */
 
 async function loadSettlement(
   tripId: string
@@ -256,12 +129,22 @@ async function loadSettlement(
     );
   }
 
-  /*
-   * Load all settlement-related data.
-   *
-   * IMPORTANT:
-   * Every trip-specific query uses tripId.
-   */
+  const { data: viewerMembership, error: viewerMembershipError } =
+    await supabase
+      .from("trip_members")
+      .select("id")
+      .eq("trip_id", tripId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+  if (viewerMembershipError) {
+    throw viewerMembershipError;
+  }
+
+  if (!viewerMembership) {
+    throw new Error("You are not a member of this trip.");
+  }
+
   const [
     memberResult,
     expenseResult,
@@ -354,64 +237,37 @@ async function loadSettlement(
   }
 
   const members =
-    (memberResult.data ??
-      []) as unknown as Member[];
+    (memberResult.data ?? []) as unknown as Member[];
 
   const expenses =
-    (expenseResult.data ??
-      []) as Expense[];
+    (expenseResult.data ?? []) as Expense[];
 
   const allSplits =
-    (splitResult.data ??
-      []) as ExpenseSplit[];
+    (splitResult.data ?? []) as ExpenseSplit[];
 
   const payments =
-    (paymentResult.data ??
-      []) as Payment[];
+    (paymentResult.data ?? []) as Payment[];
 
-  /*
-   * =========================================================
-   * MEMBER MAP
-   * =========================================================
-   *
-   * Each member is keyed by their user_id.
-   *
-   * This is what connects:
-   *
-   * expense.paid_by
-   * expense_split.participant_id
-   * payment.payer_id
-   * payment.receiver_id
-   *
-   * to the actual profile name.
-   */
   const memberMap = new Map<
     string,
     Balance
   >();
 
   for (const member of members) {
-    const profile =
-      resolveMemberProfile(member);
-
-    const resolvedName =
-      resolveMemberName(member);
+    const profile = Array.isArray(member.profiles)
+      ? member.profiles[0] || null
+      : member.profiles || null;
 
     memberMap.set(member.user_id, {
       memberId: member.user_id,
-
-      /*
-       * IMPORTANT:
-       * Use actual profile name here.
-       */
-      name: resolvedName,
-
+      name:
+        profile?.name?.trim() ||
+        profile?.email?.trim() ||
+        `Traveler ${memberMap.size + 1}`,
       email:
-        profile?.email || "",
-
+        profile?.email?.trim() || "",
       upiId:
-        profile?.upi_id || null,
-
+        profile?.upi_id?.trim() || null,
       paid: 0,
       owed: 0,
       net: 0,
@@ -419,20 +275,15 @@ async function loadSettlement(
   }
 
   /*
-   * =========================================================
-   * CALCULATE WHAT EACH PERSON PAID
-   * =========================================================
+   * Calculate what each person paid.
    */
-
   for (const expense of expenses) {
     if (!expense.paid_by) {
       continue;
     }
 
     const payer =
-      memberMap.get(
-        expense.paid_by
-      );
+      memberMap.get(expense.paid_by);
 
     if (!payer) {
       continue;
@@ -440,20 +291,14 @@ async function loadSettlement(
 
     payer.paid = roundMoney(
       payer.paid +
-        Number(
-          expense.amount || 0
-        )
+        Number(expense.amount || 0)
     );
   }
 
   /*
-   * =========================================================
-   * CALCULATE WHAT EACH PERSON OWES
-   * =========================================================
-   *
-   * Uses the actual expense_splits rows.
+   * Calculate what each person owes
+   * according to expense_splits.
    */
-
   for (const split of allSplits) {
     if (!split.participant_id) {
       continue;
@@ -470,16 +315,12 @@ async function loadSettlement(
 
     member.owed = roundMoney(
       member.owed +
-        Number(
-          split.amount || 0
-        )
+        Number(split.amount || 0)
     );
   }
 
   /*
-   * =========================================================
-   * LEGACY PROTECTION
-   * =========================================================
+   * Legacy protection:
    *
    * If an expense exists but has no splits,
    * divide it equally among current trip members.
@@ -488,7 +329,6 @@ async function loadSettlement(
    * It is only a fallback for old expense rows
    * that were created before splits existed.
    */
-
   const expenseIdsWithSplits =
     new Set(
       allSplits.map(
@@ -498,9 +338,7 @@ async function loadSettlement(
     );
 
   const fallbackMembers =
-    Array.from(
-      memberMap.values()
-    );
+    Array.from(memberMap.values());
 
   for (const expense of expenses) {
     if (
@@ -516,9 +354,7 @@ async function loadSettlement(
     }
 
     const share = roundMoney(
-      Number(
-        expense.amount || 0
-      ) /
+      Number(expense.amount || 0) /
         fallbackMembers.length
     );
 
@@ -530,9 +366,7 @@ async function loadSettlement(
   }
 
   /*
-   * =========================================================
-   * APPLY COMPLETED PAYMENTS
-   * =========================================================
+   * Apply completed payments.
    *
    * Positive net = should receive.
    * Negative net = owes.
@@ -541,7 +375,6 @@ async function loadSettlement(
    * A's outstanding debt decreases.
    * B's outstanding credit decreases.
    */
-
   for (const payment of payments) {
     if (
       payment.status !==
@@ -584,40 +417,21 @@ async function loadSettlement(
     );
   }
 
-  /*
-   * =========================================================
-   * FINAL BALANCES
-   * =========================================================
-   */
-
   const balances =
     Array.from(
       memberMap.values()
     ).map((member) => ({
       ...member,
-
       net: roundMoney(
         member.paid -
           member.owed
       ),
     }));
 
-  /*
-   * =========================================================
-   * MINIMIZE TRANSFERS
-   * =========================================================
-   */
-
   const transfers =
     minimizeTransfers(
       balances
     );
-
-  /*
-   * =========================================================
-   * TOTALS
-   * =========================================================
-   */
 
   const totalExpenses =
     roundMoney(
@@ -651,11 +465,8 @@ async function loadSettlement(
 
   return {
     tripId,
-
     totalExpenses,
-
     totalPaid,
-
     outstanding:
       roundMoney(
         transfers.reduce(
@@ -665,36 +476,19 @@ async function loadSettlement(
           0
         )
       ),
-
     expenseCount:
       expenses.length,
-
     paymentCount:
       payments.filter(
         (payment) =>
           payment.status ===
           "completed"
       ).length,
-
-    /*
-     * These now contain the REAL
-     * profile names.
-     */
     members: balances,
-
-    /*
-     * These also contain the REAL
-     * profile names.
-     */
     transfers,
-
     payments,
   };
 }
-
-/* =========================================================
-   MINIMIZE TRANSFERS
-   ========================================================= */
 
 function minimizeTransfers(
   balances: Balance[]
@@ -706,14 +500,12 @@ function minimizeTransfers(
     )
     .map((person) => ({
       ...person,
-
       amount:
         Math.abs(person.net),
     }))
     .sort(
       (a, b) =>
-        b.amount -
-        a.amount
+        b.amount - a.amount
     );
 
   const creditors = balances
@@ -723,19 +515,16 @@ function minimizeTransfers(
     )
     .map((person) => ({
       ...person,
-
       amount: person.net,
     }))
     .sort(
       (a, b) =>
-        b.amount -
-        a.amount
+        b.amount - a.amount
     );
 
   const result: Transfer[] = [];
 
   let debtorIndex = 0;
-
   let creditorIndex = 0;
 
   while (
@@ -748,9 +537,7 @@ function minimizeTransfers(
       debtors[debtorIndex];
 
     const creditor =
-      creditors[
-        creditorIndex
-      ];
+      creditors[creditorIndex];
 
     const amount = roundMoney(
       Math.min(
@@ -763,37 +550,14 @@ function minimizeTransfers(
       break;
     }
 
-    /*
-     * IMPORTANT:
-     *
-     * `debtor.name` and
-     * `creditor.name` now come
-     * directly from profiles.
-     *
-     * So settlement will display:
-     *
-     * Rahul pays Priya
-     *
-     * instead of:
-     *
-     * Traveler 1 pays Traveler 2
-     */
     result.push({
       from: debtor.name,
-
-      fromId:
-        debtor.memberId,
-
+      fromId: debtor.memberId,
       to: creditor.name,
-
-      toId:
-        creditor.memberId,
-
+      toId: creditor.memberId,
       amount,
-
       fromUpiId:
         debtor.upiId,
-
       toUpiId:
         creditor.upiId,
     });
@@ -1094,21 +858,16 @@ export async function POST(
       .insert({
         trip_id:
           tripId,
-
         payer_id:
           payerId,
-
         receiver_id:
           receiverId,
-
         amount:
           roundMoney(
             amount
           ),
-
         status:
           "completed",
-
         completed_at:
           new Date().toISOString(),
       })
@@ -1127,7 +886,15 @@ export async function POST(
       .single();
 
     if (paymentError) {
-      throw paymentError;
+      console.error("PAYMENTS INSERT ERROR:", paymentError);
+
+      if (paymentError.code === "42501") {
+        throw new Error(
+          "Supabase blocked the settlement payment insert. Add the payments INSERT RLS policy from the TripWise settlement setup SQL."
+        );
+      }
+
+      throw new Error(paymentError.message || "Unable to save settlement payment.");
     }
 
     const updatedSettlement =
@@ -1137,10 +904,8 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-
       payment:
         insertedPayment,
-
       settlement:
         updatedSettlement,
     });

@@ -33,6 +33,10 @@ import {
   getSupabase,
 } from "@/lib/supabase";
 
+/* ======================================================================= */
+/* TYPES                                                                   */
+/* ======================================================================= */
+
 type Trip = {
   id: string;
   name: string;
@@ -119,37 +123,74 @@ const SPENDING_COLORS = [
 
 export default function DashboardPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
+
+  /*
+   * Active trip members.
+   *
+   * These are loaded directly from Supabase using:
+   * trip_members -> profiles
+   */
   const [members, setMembers] = useState<TripMember[]>([]);
+
+  /*
+   * Active trip expenses.
+   *
+   * Used by:
+   * - Recent Expenses
+   * - Current Trip
+   * - Active Trip Ledger
+   */
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
   /*
-   * IMPORTANT:
+   * All expenses belonging to all trips created by
+   * the logged-in user.
    *
-   * allExpenses = only expenses PAID BY the logged-in user.
-   *
-   * This is intentionally separate from "expenses".
-   *
-   * "expenses" remains active-trip-wide so that:
-   * - Recent Expenses
-   * - Trip Rows
-   * - Trip Ledger
-   * continue showing the complete trip data.
-   *
-   * "allExpenses" is used only for the user's personal
-   * spending analytics.
+   * This is used for personal analytics.
    */
   const [allExpenses, setAllExpenses] =
     useState<Expense[]>([]);
 
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  /*
+   * All expenses across all trips.
+   *
+   * This allows every TripRow to calculate its
+   * own actual spending instead of using only
+   * the active trip's expenses.
+   */
+  const [allTripExpenses, setAllTripExpenses] =
+    useState<Expense[]>([]);
+
+  /*
+   * Active trip bookings.
+   */
+  const [bookings, setBookings] =
+    useState<Booking[]>([]);
+
+  /*
+   * All bookings across all trips.
+   */
+  const [allTripBookings, setAllTripBookings] =
+    useState<Booking[]>([]);
 
   const [currentUser, setCurrentUser] =
     useState<CurrentUser | null>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [mobileMenu, setMobileMenu] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] =
+    useState(true);
+
+  const [refreshing, setRefreshing] =
+    useState(false);
+
+  const [mobileMenu, setMobileMenu] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  /* ===================================================================== */
+  /* INITIAL LOAD                                                          */
+  /* ===================================================================== */
 
   useEffect(() => {
     loadDashboard();
@@ -157,7 +198,7 @@ export default function DashboardPage() {
   }, []);
 
   /* ===================================================================== */
-  /* CURRENT USER                                                           */
+  /* CURRENT USER                                                          */
   /* ===================================================================== */
 
   async function loadCurrentUser() {
@@ -171,11 +212,23 @@ export default function DashboardPage() {
 
       const supabase = getSupabase();
 
-      const { data } = await supabase
+      const {
+        data,
+        error: profileError,
+      } = await supabase
         .from("profiles")
-        .select("id, name, email, avatar_url")
+        .select(
+          "id, name, email, avatar_url"
+        )
         .eq("id", user.id)
         .maybeSingle();
+
+      if (profileError) {
+        console.warn(
+          "Could not load profile:",
+          profileError
+        );
+      }
 
       setCurrentUser({
         id: user.id,
@@ -220,7 +273,9 @@ export default function DashboardPage() {
         setMembers([]);
         setExpenses([]);
         setAllExpenses([]);
+        setAllTripExpenses([]);
         setBookings([]);
+        setAllTripBookings([]);
         return;
       }
 
@@ -233,7 +288,9 @@ export default function DashboardPage() {
         error: tripError,
       } = await supabase
         .from("trips")
-        .select("*")
+        .select(
+          "id, name, destination, start_date, end_date, created_at"
+        )
         .eq("created_by", user.id)
         .order("created_at", {
           ascending: false,
@@ -248,11 +305,17 @@ export default function DashboardPage() {
 
       setTrips(loadedTrips);
 
+      /* --------------------------------------------------------------- */
+      /* NO TRIPS                                                        */
+      /* --------------------------------------------------------------- */
+
       if (loadedTrips.length === 0) {
         setMembers([]);
         setExpenses([]);
         setAllExpenses([]);
+        setAllTripExpenses([]);
         setBookings([]);
+        setAllTripBookings([]);
         return;
       }
 
@@ -265,14 +328,14 @@ export default function DashboardPage() {
         );
 
       /* --------------------------------------------------------------- */
-      /* LOAD DATA                                                       */
+      /* LOAD ALL DATA FROM SUPABASE                                    */
       /* --------------------------------------------------------------- */
 
       const [
         memberResult,
-        activeExpenseResult,
+        allExpenseResult,
         personalExpenseResult,
-        bookingResult,
+        allBookingResult,
       ] = await Promise.all([
         /*
          * ACTIVE TRIP MEMBERS
@@ -290,17 +353,18 @@ export default function DashboardPage() {
               email
             )
           `)
-          .eq("trip_id", activeTripId),
+          .eq(
+            "trip_id",
+            activeTripId
+          ),
 
         /*
-         * ACTIVE TRIP EXPENSES
+         * ALL TRIP EXPENSES
          *
-         * IMPORTANT:
-         *
-         * This intentionally does NOT use paid_by.
-         *
-         * The trip page/dashboard ledger needs to see
-         * expenses from all members of the active trip.
+         * Used for:
+         * - active trip
+         * - individual trip rows
+         * - complete trip totals
          */
         supabase
           .from("expenses")
@@ -314,7 +378,10 @@ export default function DashboardPage() {
             expense_date,
             created_at
           `)
-          .eq("trip_id", activeTripId)
+          .in(
+            "trip_id",
+            allTripIds
+          )
           .order("created_at", {
             ascending: false,
           }),
@@ -322,18 +389,14 @@ export default function DashboardPage() {
         /*
          * PERSONAL EXPENSES
          *
-         * IMPORTANT:
+         * Only expenses where:
          *
-         * This is the query used by:
+         * paid_by = logged-in user
+         *
+         * These are used for:
          * - My Total Spend
-         * - Yearly Spending
-         * - Yearly Pie Charts
-         *
-         * Only expenses PAID BY the logged-in user
-         * are included.
-         *
-         * This prevents other trip members' expenses
-         * from appearing in the user's personal analytics.
+         * - yearly analytics
+         * - pie charts
          */
         supabase
           .from("expenses")
@@ -360,7 +423,7 @@ export default function DashboardPage() {
           }),
 
         /*
-         * ACTIVE TRIP BOOKINGS
+         * ALL BOOKINGS
          */
         supabase
           .from("bookings")
@@ -375,7 +438,10 @@ export default function DashboardPage() {
             booking_date,
             status
           `)
-          .eq("trip_id", activeTripId)
+          .in(
+            "trip_id",
+            allTripIds
+          )
           .order("created_at", {
             ascending: false,
           }),
@@ -393,13 +459,13 @@ export default function DashboardPage() {
       }
 
       /* --------------------------------------------------------------- */
-      /* ACTIVE EXPENSE RESULT                                           */
+      /* EXPENSE RESULT                                                  */
       /* --------------------------------------------------------------- */
 
-      if (activeExpenseResult.error) {
+      if (allExpenseResult.error) {
         console.warn(
-          "Could not load active trip expenses:",
-          activeExpenseResult.error
+          "Could not load trip expenses:",
+          allExpenseResult.error
         );
       }
 
@@ -418,40 +484,79 @@ export default function DashboardPage() {
       /* BOOKING RESULT                                                  */
       /* --------------------------------------------------------------- */
 
-      if (bookingResult.error) {
+      if (allBookingResult.error) {
         console.warn(
-          "Could not load bookings:",
-          bookingResult.error
+          "Could not load trip bookings:",
+          allBookingResult.error
         );
       }
 
-      const loadedActiveExpenses =
-        (activeExpenseResult.data ?? []) as Expense[];
+      /* --------------------------------------------------------------- */
+      /* PREPARE DATA                                                    */
+      /* --------------------------------------------------------------- */
+
+      const loadedAllExpenses =
+        (allExpenseResult.data ??
+          []) as Expense[];
 
       const loadedPersonalExpenses =
-        (personalExpenseResult.data ?? []) as Expense[];
+        (personalExpenseResult.data ??
+          []) as Expense[];
+
+      const loadedAllBookings =
+        (allBookingResult.data ??
+          []) as Booking[];
+
+      const loadedMembers =
+        (memberResult.data ??
+          []) as unknown as TripMember[];
+
+      /* --------------------------------------------------------------- */
+      /* ALL EXPENSES                                                    */
+      /* --------------------------------------------------------------- */
+
+      setAllTripExpenses(
+        loadedAllExpenses
+      );
 
       /* --------------------------------------------------------------- */
       /* ACTIVE TRIP EXPENSES                                            */
       /* --------------------------------------------------------------- */
 
       setExpenses(
-        loadedActiveExpenses
+        loadedAllExpenses.filter(
+          (expense) =>
+            expense.trip_id ===
+            activeTripId
+        )
       );
 
       /* --------------------------------------------------------------- */
       /* PERSONAL EXPENSES                                               */
       /* --------------------------------------------------------------- */
 
-      /*
-       * This state now contains ONLY:
-       *
-       * expense.paid_by === loggedInUser.id
-       *
-       * across all trips created by the logged-in user.
-       */
       setAllExpenses(
         loadedPersonalExpenses
+      );
+
+      /* --------------------------------------------------------------- */
+      /* ALL BOOKINGS                                                    */
+      /* --------------------------------------------------------------- */
+
+      setAllTripBookings(
+        loadedAllBookings
+      );
+
+      /* --------------------------------------------------------------- */
+      /* ACTIVE TRIP BOOKINGS                                            */
+      /* --------------------------------------------------------------- */
+
+      setBookings(
+        loadedAllBookings.filter(
+          (booking) =>
+            booking.trip_id ===
+            activeTripId
+        )
       );
 
       /* --------------------------------------------------------------- */
@@ -459,15 +564,7 @@ export default function DashboardPage() {
       /* --------------------------------------------------------------- */
 
       setMembers(
-        (memberResult.data ?? []) as unknown as TripMember[]
-      );
-
-      /* --------------------------------------------------------------- */
-      /* BOOKINGS                                                        */
-      /* --------------------------------------------------------------- */
-
-      setBookings(
-        (bookingResult.data ?? []) as Booking[]
+        loadedMembers
       );
     } catch (err) {
       console.error(
@@ -490,12 +587,14 @@ export default function DashboardPage() {
   async function refreshDashboard() {
     setRefreshing(true);
 
-    await Promise.all([
-      loadDashboard(),
-      loadCurrentUser(),
-    ]);
-
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        loadDashboard(),
+        loadCurrentUser(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   /* ===================================================================== */
@@ -508,94 +607,80 @@ export default function DashboardPage() {
   const activeTripId =
     activeTrip?.id ?? null;
 
-  const myTripsHref = "/trips";
+  const myTripsHref =
+    "/trips";
 
-  const tripHref = activeTripId
-    ? `/trip/${activeTripId}`
-    : "/trip/new";
+  const tripHref =
+    activeTripId
+      ? `/trip/${activeTripId}`
+      : "/trip/new";
 
-  const expensesHref = activeTripId
-    ? `/trip/${activeTripId}/expenses`
-    : "#";
+  const expensesHref =
+    activeTripId
+      ? `/trip/${activeTripId}/expenses`
+      : "#";
 
-  const bookingsHref = activeTripId
-    ? `/trip/${activeTripId}/bookings`
-    : "#";
+  const bookingsHref =
+    activeTripId
+      ? `/trip/${activeTripId}/bookings`
+      : "#";
 
-  const itineraryHref = activeTripId
-    ? `/trip/${activeTripId}/itinerary`
-    : "#";
+  const itineraryHref =
+    activeTripId
+      ? `/trip/${activeTripId}/itinerary`
+      : "#";
 
   /* ===================================================================== */
   /* ACTIVE TRIP EXPENSE TOTAL                                            */
   /* ===================================================================== */
 
-  /*
-   * These totals are intentionally trip-wide.
-   *
-   * They are used for the active trip ledger and
-   * should include all members' expenses.
-   */
+  const totalExpenses =
+    useMemo(() => {
+      return expenses.reduce(
+        (sum, expense) =>
+          sum +
+          Number(
+            expense.amount || 0
+          ),
+        0
+      );
+    }, [expenses]);
 
-  const totalExpenses = useMemo(() => {
-    return expenses.reduce(
-      (sum, expense) =>
-        sum + Number(expense.amount || 0),
-      0
-    );
-  }, [expenses]);
-
-  const totalBookings = useMemo(() => {
-    return bookings.reduce(
-      (sum, booking) =>
-        sum + Number(booking.amount || 0),
-      0
-    );
-  }, [bookings]);
+  const totalBookings =
+    useMemo(() => {
+      return bookings.reduce(
+        (sum, booking) =>
+          sum +
+          Number(
+            booking.amount || 0
+          ),
+        0
+      );
+    }, [bookings]);
 
   const totalTripSpend =
-    totalExpenses + totalBookings;
+    totalExpenses +
+    totalBookings;
 
   /* ===================================================================== */
   /* PERSONAL TOTAL SPENDING                                              */
   /* ===================================================================== */
 
-  /*
-   * IMPORTANT:
-   *
-   * This is the logged-in user's total expense amount
-   * across all of their trips.
-   *
-   * Because allExpenses is already filtered by:
-   *
-   * .eq("paid_by", user.id)
-   *
-   * this number cannot include expenses paid by other
-   * trip members.
-   */
-
-  const personalTotalSpend = useMemo(() => {
-    return allExpenses.reduce(
-      (sum, expense) =>
-        sum + Number(expense.amount || 0),
-      0
-    );
-  }, [allExpenses]);
+  const personalTotalSpend =
+    useMemo(() => {
+      return allExpenses.reduce(
+        (sum, expense) =>
+          sum +
+          Number(
+            expense.amount || 0
+          ),
+        0
+      );
+    }, [allExpenses]);
 
   /* ===================================================================== */
   /* YEARLY SPENDING DATA                                                  */
   /* ===================================================================== */
-
-  /*
-   * The yearly spending report uses allExpenses,
-   * NOT expenses.
-   *
-   * allExpenses contains only the logged-in user's
-   * expenses.
-   *
-   * Therefore the pie chart and yearly totals are also
-   * personal to the logged-in user.
-   */
 
   const yearlySpending =
     useMemo<YearlySpending[]>(() => {
@@ -613,19 +698,14 @@ export default function DashboardPage() {
             );
 
           if (
-            !Number.isFinite(amount) ||
+            !Number.isFinite(
+              amount
+            ) ||
             amount <= 0
           ) {
             return;
           }
 
-          /*
-           * Prefer expense_date because the report
-           * should be based on when the expense happened.
-           *
-           * created_at is used only when expense_date
-           * is not available.
-           */
           const dateValue =
             expense.expense_date ||
             expense.created_at;
@@ -637,26 +717,19 @@ export default function DashboardPage() {
           const date =
             new Date(dateValue);
 
-          const yearNumber =
-            date.getFullYear();
-
           if (
-            !Number.isFinite(
-              yearNumber
+            Number.isNaN(
+              date.getTime()
             )
           ) {
             return;
           }
 
           const year =
-            String(yearNumber);
+            String(
+              date.getFullYear()
+            );
 
-          /*
-           * Use the category stored in Supabase.
-           *
-           * Empty/null categories are grouped
-           * under "Other".
-           */
           const category =
             expense.category?.trim() ||
             "Other";
@@ -743,14 +816,6 @@ export default function DashboardPage() {
   /* PERSONAL ANALYTICS TOTAL                                             */
   /* ===================================================================== */
 
-  /*
-   * This total is calculated from the same filtered
-   * yearly data used by the pie charts.
-   *
-   * This gives us one consistent source of truth
-   * for personal spending analytics.
-   */
-
   const personalAnalyticsTotal =
     useMemo(() => {
       return yearlySpending.reduce(
@@ -759,6 +824,47 @@ export default function DashboardPage() {
         0
       );
     }, [yearlySpending]);
+
+  /* ===================================================================== */
+  /* ACTIVE TRIP TRAVELER NAMES                                           */
+  /* ===================================================================== */
+
+  const travelerNames =
+    useMemo(() => {
+      return members
+        .map(
+          (member) =>
+            member.profile?.name?.trim() ||
+            member.profile?.email?.trim() ||
+            "Traveler"
+        )
+        .filter(Boolean);
+    }, [members]);
+
+  const travelerSummary =
+    useMemo(() => {
+      if (
+        travelerNames.length === 0
+      ) {
+        return "No travelers";
+      }
+
+      if (
+        travelerNames.length === 1
+      ) {
+        return travelerNames[0];
+      }
+
+      if (
+        travelerNames.length === 2
+      ) {
+        return `${travelerNames[0]} & ${travelerNames[1]}`;
+      }
+
+      return `${travelerNames[0]}, ${travelerNames[1]} + ${
+        travelerNames.length - 2
+      } more`;
+    }, [travelerNames]);
 
   /* ===================================================================== */
   /* DISPLAY DATA                                                          */
@@ -774,7 +880,8 @@ export default function DashboardPage() {
   const displayInitial =
     displayName
       .charAt(0)
-      .toUpperCase() || "T";
+      .toUpperCase() ||
+    "T";
 
   /* ===================================================================== */
   /* LOADING                                                               */
@@ -1490,12 +1597,33 @@ export default function DashboardPage() {
                       <span className="h-fit rounded-full border border-white/15 px-3 py-1 text-[10px] backdrop-blur">
 
                         {activeTrip
-                          ? `${members.length} people`
+                          ? `${members.length} ${
+                              members.length === 1
+                                ? "traveler"
+                                : "travelers"
+                            }`
                           : "No trip yet"}
 
                       </span>
 
                     </div>
+
+                    {/* DYNAMIC TRAVELER NAMES */}
+
+                    {activeTrip &&
+                      members.length > 0 && (
+                        <div className="relative mt-4 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+
+                          <p className="text-[8px] font-bold uppercase tracking-[.14em] text-[#9fb0a8]">
+                            Travelers
+                          </p>
+
+                          <p className="mt-1 truncate text-xs font-semibold text-[#f3efe5]">
+                            {travelerSummary}
+                          </p>
+
+                        </div>
+                      )}
 
                     <div className="relative mt-6 overflow-hidden rounded-2xl bg-[#f4f0e6] p-5 text-[#191917]">
 
@@ -1586,10 +1714,6 @@ export default function DashboardPage() {
               sub="Trips in your workspace"
             />
 
-            {/* ======================================================= */}
-            {/* PERSONAL TOTAL SPEND                                    */}
-            {/* ======================================================= */}
-
             <Stat
               icon={<WalletCards />}
               label="My Total Spend"
@@ -1605,7 +1729,11 @@ export default function DashboardPage() {
               value={String(
                 members.length
               )}
-              sub="Participants in active trip"
+              sub={
+                members.length === 1
+                  ? "Participant in active trip"
+                  : "Participants in active trip"
+              }
             />
 
             <Stat
@@ -1667,12 +1795,12 @@ export default function DashboardPage() {
                     <TripRow
                       key={trip.id}
                       trip={trip}
-                      expenses={expenses.filter(
+                      expenses={allTripExpenses.filter(
                         (expense) =>
                           expense.trip_id ===
                           trip.id
                       )}
-                      bookings={bookings.filter(
+                      bookings={allTripBookings.filter(
                         (booking) =>
                           booking.trip_id ===
                           trip.id
@@ -1837,11 +1965,40 @@ export default function DashboardPage() {
 
                   <span className="flex items-center gap-1.5 rounded-full bg-[#e8e5d9] px-3 py-1.5 text-[10px] font-bold text-[#68655d]">
                     <Users size={11} />
-                    {members.length} travelers
+                    {members.length}{" "}
+                    {members.length === 1
+                      ? "traveler"
+                      : "travelers"}
                   </span>
 
                 </div>
               )}
+
+              {/* TRAVELER NAMES */}
+
+              {activeTrip &&
+                travelerNames.length > 0 && (
+                  <div className="mt-4 rounded-2xl border border-[#292a25]/10 bg-[#f4f0e6] p-4">
+
+                    <div className="flex items-center gap-2">
+
+                      <Users
+                        size={15}
+                        className="text-[#927543]"
+                      />
+
+                      <p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#99948a]">
+                        Trip travelers
+                      </p>
+
+                    </div>
+
+                    <p className="mt-2 text-sm font-bold text-[#355244]">
+                      {travelerSummary}
+                    </p>
+
+                  </div>
+                )}
 
               {activeTripId && (
                 <Link
@@ -2199,11 +2356,7 @@ function YearlySpendingCard({
   return (
     <div className="group relative overflow-hidden rounded-[28px] border border-[#292a25]/10 bg-[#f8f5ec] p-6 shadow-[0_10px_35px_rgba(40,40,30,.035)] transition duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-[0_18px_45px_rgba(40,40,30,.07)]">
 
-      {/* DECORATIVE CIRCLE */}
-
       <div className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full border border-[#927543]/10 transition-transform duration-700 group-hover:scale-125" />
-
-      {/* HEADER */}
 
       <div className="relative flex items-start justify-between gap-5">
 
@@ -2234,8 +2387,6 @@ function YearlySpendingCard({
         </div>
 
       </div>
-
-      {/* PIE + LEGEND */}
 
       <div className="relative mt-7 grid gap-7 sm:grid-cols-[220px_1fr] sm:items-center">
 
@@ -2315,8 +2466,6 @@ function YearlySpendingCard({
         </div>
 
       </div>
-
-      {/* FOOTER */}
 
       <div className="relative mt-6 flex items-center justify-between border-t border-[#292a25]/8 pt-4">
 
@@ -2406,8 +2555,6 @@ function SpendingPie({
   return (
     <div className="relative mx-auto h-[190px] w-[190px]">
 
-      {/* PIE */}
-
       <div
         className="h-full w-full rounded-full shadow-[inset_0_0_0_1px_rgba(25,26,24,.06),0_12px_30px_rgba(40,40,30,.08)]"
         style={{
@@ -2415,8 +2562,6 @@ function SpendingPie({
             `conic-gradient(${gradientStops})`,
         }}
       />
-
-      {/* CENTER */}
 
       <div className="absolute inset-[30px] flex flex-col items-center justify-center rounded-full bg-[#f8f5ec] text-center shadow-[0_3px_15px_rgba(40,40,30,.08)]">
 
@@ -2917,9 +3062,18 @@ function formatDateRange(
 function formatDate(
   value: string
 ) {
-  return new Date(
-    value
-  ).toLocaleDateString(
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "Date unavailable";
+  }
+
+  return date.toLocaleDateString(
     "en-IN",
     {
       day: "numeric",
