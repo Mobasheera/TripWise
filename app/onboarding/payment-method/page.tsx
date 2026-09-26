@@ -11,7 +11,7 @@ import {
   Loader2,
   Smartphone,
 } from "lucide-react";
-import { clearUpiId, saveUpiId } from "@/lib/supabase";
+import { saveUpiId } from "@/lib/supabase";
 import { isValidUpiId } from "@/lib/validators";
 
 type Method = "cash" | "upi" | null;
@@ -46,7 +46,7 @@ export default function PaymentMethodPage() {
       if (method === "upi") {
         await saveUpiId(upiId);
       } else {
-        await clearUpiId();
+        await saveUpiId("Cash");
       }
 
       router.replace("/dashboard");
