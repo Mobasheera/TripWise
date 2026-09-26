@@ -9,11 +9,12 @@ import {
   LayoutDashboard,
   List,
   Map,
+  PieChart,
   Settings,
   User,
   WalletCards,
 } from "lucide-react";
-import { getSupabase } from "@/lib/supabase";
+import { getAccessibleTrips } from "@/lib/tripAccess";
 
 type Trip = {
   id: string;
@@ -40,24 +41,8 @@ export default function TripSidebar({
 
   async function loadTrips() {
     try {
-      const supabase = getSupabase();
-
-      const { data, error } = await supabase
-        .from("trips")
-        .select(
-          "id, name, destination, start_date, end_date"
-        )
-        .order("created_at", {
-          ascending: false,
-        });
-
-      if (error) {
-        console.error("Could not load trips:", error);
-        setTrips([]);
-        return;
-      }
-
-      setTrips(data || []);
+      const accessibleTrips = await getAccessibleTrips();
+      setTrips(accessibleTrips);
     } catch (error) {
       console.error("Could not load trips:", error);
       setTrips([]);
@@ -187,6 +172,15 @@ export default function TripSidebar({
                 })
               )}
 
+              {/* TRIP SUMMARY */}
+              <Link
+                href="/summary"
+                className="mt-2 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-[#5e5a52] transition hover:bg-[#ece8dd] hover:text-[#191a18]"
+              >
+                <PieChart size={17} />
+                Trip Summary
+              </Link>
+
               {/* CREATE TRIP */}
               <Link
                 href="/trip/new"
@@ -235,6 +229,12 @@ export default function TripSidebar({
                 href={`/trip/${activeTripId}/settlement`}
                 icon={<WalletCards size={17} />}
                 label="Settlement"
+              />
+
+              <TripNavLink
+                href={`/trip/${activeTripId}/summary`}
+                icon={<PieChart size={17} />}
+                label="Spending Summary"
               />
             </div>
           </div>
