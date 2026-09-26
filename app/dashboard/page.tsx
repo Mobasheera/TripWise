@@ -14,6 +14,7 @@ import {
   MapPin,
   Menu,
   Plus,
+  PieChart,
   Receipt,
   RefreshCw,
   Settings,
@@ -547,6 +548,13 @@ export default function DashboardPage() {
             >
               My Trips
             </SidebarItem>
+
+            <SidebarItem
+              href="/summary"
+              icon={<PieChart size={19} />}
+            >
+              Trip Summary
+            </SidebarItem>
           </nav>
 
           <div className="mt-8 rounded-[22px] bg-[#203a31] p-5 text-[#f3efe5]">
@@ -610,6 +618,13 @@ export default function DashboardPage() {
                 icon={<MapPin size={18} />}
               >
                 My Trips
+              </SidebarItem>
+
+              <SidebarItem
+                href="/summary"
+                icon={<PieChart size={18} />}
+              >
+                Trip Summary
               </SidebarItem>
 
               <SidebarItem
