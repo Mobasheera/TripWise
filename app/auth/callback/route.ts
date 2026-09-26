@@ -176,58 +176,22 @@ export async function GET(request: Request) {
   }
 
   /**
-   * Create profile automatically when it doesn't exist.
+   * IMPORTANT:
+   *
+   * Authentication and TripWise profile creation are separate steps.
+   *
+   * The callback must NEVER create a row in `profiles`. The presence of
+   * that row determines whether the authenticated user is an existing
+   * TripWise user or a first-time user who still needs onboarding.
    */
 
-  if (!profile) {
-    const metadata =
-      (user.user_metadata ?? {}) as Record<
-        string,
-        unknown
-      >;
-
-    const name =
-      typeof metadata.full_name === "string"
-        ? metadata.full_name.trim()
-        : typeof metadata.name === "string"
-          ? metadata.name.trim()
-          : user.email?.split("@")[0] ||
-            "Traveler";
-
-    const avatarUrl =
-      typeof metadata.avatar_url === "string"
-        ? metadata.avatar_url.trim()
-        : typeof metadata.picture === "string"
-          ? metadata.picture.trim()
-          : null;
-
-    const { error: insertError } =
-      await supabase
-        .from("profiles")
-        .insert({
-          id: user.id,
-          name,
-          email: user.email || null,
-          avatar_url: avatarUrl,
-          upi_id: null,
-        });
-
-    if (insertError) {
-      console.error(
-        "Unable to create TripWise profile:",
-        insertError,
-      );
-
-      return redirectToLogin(
-        requestUrl,
-        "profile",
-      );
-    }
-  }
+  const destination = profile
+    ? "/dashboard"
+    : "/onboarding/profile";
 
   return NextResponse.redirect(
     new URL(
-      "/dashboard",
+      destination,
       requestUrl.origin,
     ),
   );
