@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 import {
-  getCurrentUser,
+  getAuthenticatedUser,
   sendMagicLink,
   signInWithGoogle,
 } from "@/lib/supabase";
@@ -90,15 +90,20 @@ export default function LoginPage() {
           );
         }
 
-        const user =
-          await getCurrentUser();
+        const authState =
+          await getAuthenticatedUser();
 
         if (!mounted) {
           return;
         }
 
-        if (user) {
+        if (authState.profile) {
           router.replace("/dashboard");
+          return;
+        }
+
+        if (authState.user) {
+          router.replace("/onboarding/profile");
           return;
         }
 
