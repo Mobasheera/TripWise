@@ -1,0 +1,170 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+
+  --paper: #f4f0e6;
+  --ink: #171716;
+  --line: #d8cfbb;
+  --brass: #b58b3b;
+  --pine: #1f332c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: #c9b477;
+  color: #171716;
+}
+
+/* -------------------------------------------------------------------------- */
+/* TripWise landing/auth typography                                           */
+/* -------------------------------------------------------------------------- */
+
+.display {
+  font-family:
+    Georgia,
+    "Times New Roman",
+    serif;
+
+  letter-spacing: -0.035em;
+}
+
+.eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #8b6a31;
+}
+
+.page-grid {
+  background-image:
+    linear-gradient(
+      rgba(72, 65, 49, 0.045) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(72, 65, 49, 0.045) 1px,
+      transparent 1px
+    );
+
+  background-size: 44px 44px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Small animations                                                           */
+/* -------------------------------------------------------------------------- */
+
+.fade-up {
+  animation:
+    fade-up 700ms ease both;
+}
+
+.delay-1 {
+  animation-delay: 100ms;
+}
+
+.delay-2 {
+  animation-delay: 200ms;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Better defaults                                                            */
+/* -------------------------------------------------------------------------- */
+
+a {
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button, input, textarea { font: inherit; }
+
+::selection {
+  background: #c9b477;
+  color: #171716;
+}
+
+.display {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: -0.035em;
+}
+
+.eyebrow {
+  font-size: .7rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #8b6a31;
+}
+
+.page-grid {
+  background-image:
+    linear-gradient(rgba(72,65,49,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(72,65,49,.045) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.fade-up { animation: fade-up 700ms ease both; }
+.delay-1 { animation-delay: 100ms; }
+.delay-2 { animation-delay: 200ms; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
