@@ -3,7 +3,10 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-function redirectToLogin(requestUrl: URL, error: string) {
+function redirectToLogin(
+  requestUrl: URL,
+  error: string,
+) {
   return NextResponse.redirect(
     new URL(
       `/login?error=${encodeURIComponent(error)}`,
@@ -15,11 +18,21 @@ function redirectToLogin(requestUrl: URL, error: string) {
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
 
-  const code = requestUrl.searchParams.get("code");
-  const tokenHash = requestUrl.searchParams.get("token_hash");
-  const rawType = requestUrl.searchParams.get("type");
+  const code =
+    requestUrl.searchParams.get("code");
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const tokenHash =
+    requestUrl.searchParams.get("token_hash");
+
+  const rawType =
+    requestUrl.searchParams.get("type");
+
+  /**
+   * Supabase configuration
+   */
+
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   const supabaseKey =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
@@ -50,7 +63,11 @@ export async function GET(request: Request) {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(
-              ({ name, value, options }) => {
+              ({
+                name,
+                value,
+                options,
+              }) => {
                 cookieStore.set(
                   name,
                   value,
@@ -70,7 +87,9 @@ export async function GET(request: Request) {
   );
 
   /**
-   * Exchange OAuth code OR verify magic-link token.
+   * -------------------------------------------------------------------------
+   * Exchange OAuth code OR verify magic-link token
+   * -------------------------------------------------------------------------
    */
 
   let authError: Error | null = null;
@@ -130,7 +149,9 @@ export async function GET(request: Request) {
   }
 
   /**
-   * Get authenticated user.
+   * -------------------------------------------------------------------------
+   * Get authenticated user
+   * -------------------------------------------------------------------------
    */
 
   const {
@@ -151,7 +172,9 @@ export async function GET(request: Request) {
   }
 
   /**
-   * Find TripWise profile.
+   * -------------------------------------------------------------------------
+   * Find TripWise profile
+   * -------------------------------------------------------------------------
    */
 
   const {
@@ -176,7 +199,11 @@ export async function GET(request: Request) {
   }
 
   /**
-   * Create profile automatically when it doesn't exist.
+   * -------------------------------------------------------------------------
+   * Create profile automatically when it doesn't exist
+   * -------------------------------------------------------------------------
+   *
+   * This is particularly useful for Google sign-in.
    */
 
   if (!profile) {
@@ -213,6 +240,11 @@ export async function GET(request: Request) {
         });
 
     if (insertError) {
+      /**
+       * A profile creation failure should not silently redirect
+       * to the dashboard because the dashboard may expect the profile.
+       */
+
       console.error(
         "Unable to create TripWise profile:",
         insertError,
@@ -224,6 +256,17 @@ export async function GET(request: Request) {
       );
     }
   }
+
+  /**
+   * -------------------------------------------------------------------------
+   * Destination
+   * -------------------------------------------------------------------------
+   *
+   * If the profile already existed, go to dashboard.
+   *
+   * If it was just created, the user can still proceed to dashboard because
+   * the basic profile has already been populated from auth metadata.
+   */
 
   return NextResponse.redirect(
     new URL(

@@ -22,7 +22,7 @@ function getSupabaseKey() {
 
   if (!key) {
     throw new Error(
-      "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to .env.local."
+      "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to .env.local.",
     );
   }
 
@@ -34,7 +34,7 @@ function getSupabaseUrl() {
 
   if (!url) {
     throw new Error(
-      "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL to .env.local."
+      "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL to .env.local.",
     );
   }
 
@@ -96,10 +96,6 @@ export async function sendMagicLink(email: string) {
   const supabase = getSupabaseBrowser();
 
   const normalizedEmail = email.trim().toLowerCase();
-
-  if (!normalizedEmail) {
-    throw new Error("Please enter your email address.");
-  }
 
   const { error } = await supabase.auth.signInWithOtp({
     email: normalizedEmail,
@@ -271,10 +267,6 @@ export async function getCurrentUser(): Promise<AuthProfile | null> {
   const email = user.email ?? "";
   const avatar = getMetadataAvatar(metadata);
 
-  /**
-   * Find existing TripWise profile.
-   */
-
   const {
     data: profile,
     error: profileError,
@@ -328,7 +320,8 @@ export async function getCurrentUser(): Promise<AuthProfile | null> {
    * Existing TripWise profile.
    */
 
-  const finalAvatar = profile.avatar_url || avatar;
+  const finalAvatar =
+    profile.avatar_url || avatar;
 
   return {
     id: user.id,
@@ -363,7 +356,7 @@ export async function saveProfile(
         email?: string | null;
         avatar_url?: string | null;
         upi_id?: string | null;
-      }
+      },
 ) {
   const supabase = getSupabaseBrowser();
 
@@ -407,9 +400,11 @@ export async function saveProfile(
       throw new Error("Please enter your first and last name.");
     }
 
-    cleanName = `${cleanFirstName} ${cleanLastName}`.trim();
+    cleanName =
+      `${cleanFirstName} ${cleanLastName}`.trim();
 
-    cleanAvatar = data.avatarUrl?.trim() || null;
+    cleanAvatar =
+      data.avatarUrl?.trim() || null;
   }
 
   /**
@@ -466,12 +461,12 @@ export async function saveProfile(
   if (updateError) {
     console.error(
       "Profile update failed:",
-      updateError
+      updateError,
     );
 
     throw new Error(
       updateError.message ||
-        "Unable to save your profile."
+        "Unable to save your profile.",
     );
   }
 
@@ -498,12 +493,12 @@ export async function saveProfile(
     if (insertError) {
       console.error(
         "Profile insert failed:",
-        insertError
+        insertError,
       );
 
       throw new Error(
         insertError.message ||
-          "Unable to create your profile."
+          "Unable to create your profile.",
       );
     }
 
@@ -548,7 +543,7 @@ export async function saveProfileName({
 
   if (!cleanFirstName || !cleanLastName) {
     throw new Error(
-      "Please enter your first and last name."
+      "Please enter your first and last name.",
     );
   }
 
@@ -557,7 +552,8 @@ export async function saveProfileName({
     unknown
   >;
 
-  const metadataAvatar = getMetadataAvatar(metadata);
+  const metadataAvatar =
+    getMetadataAvatar(metadata);
 
   const { error } = await supabase
     .from("profiles")
@@ -573,7 +569,7 @@ export async function saveProfileName({
       },
       {
         onConflict: "id",
-      }
+      },
     );
 
   if (error) {
@@ -609,7 +605,7 @@ export async function saveUpiId(upiId: string) {
       message.includes("not authenticated")
     ) {
       throw new Error(
-        "You need to sign in first."
+        "You need to sign in first.",
       );
     }
 
@@ -618,7 +614,7 @@ export async function saveUpiId(upiId: string) {
 
   if (!user) {
     throw new Error(
-      "You need to sign in first."
+      "You need to sign in first.",
     );
   }
 
@@ -626,7 +622,7 @@ export async function saveUpiId(upiId: string) {
 
   if (!cleanValue) {
     throw new Error(
-      "Please enter a UPI ID or select Cash."
+      "Please enter a UPI ID or select Cash.",
     );
   }
 
@@ -652,7 +648,7 @@ export async function saveUpiId(upiId: string) {
       },
       {
         onConflict: "id",
-      }
+      },
     );
 
   if (error) {
@@ -680,7 +676,7 @@ export async function clearUpiId() {
 
   if (!user) {
     throw new Error(
-      "You need to sign in first."
+      "You need to sign in first.",
     );
   }
 

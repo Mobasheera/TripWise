@@ -9,9 +9,7 @@ type ExpenseMember = {
   upi_id: string | null;
 };
 
-function getSupabaseServerClient(
-  cookieStore: Awaited<ReturnType<typeof cookies>>
-) {
+function getSupabaseServerClient(cookieStore: Awaited<ReturnType<typeof cookies>>) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   const supabaseKey =
@@ -102,6 +100,7 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
+
     const tripId = searchParams.get("tripId");
 
     if (!tripId) {
@@ -112,6 +111,10 @@ export async function GET(request: Request) {
         { status: 400 }
       );
     }
+
+    /* ---------------------------------------------------------------------- */
+    /* IMPORTANT: user must belong to THIS trip                               */
+    /* ---------------------------------------------------------------------- */
 
     const membership = await verifyTripMember(
       supabase,
@@ -127,6 +130,10 @@ export async function GET(request: Request) {
         { status: 403 }
       );
     }
+
+    /* ---------------------------------------------------------------------- */
+    /* Load expenses ONLY for this trip                                      */
+    /* ---------------------------------------------------------------------- */
 
     const { data: expenses, error: expensesError } = await supabase
       .from("expenses")
@@ -148,6 +155,10 @@ export async function GET(request: Request) {
     if (expensesError) {
       throw expensesError;
     }
+
+    /* ---------------------------------------------------------------------- */
+    /* Load members ONLY for this trip                                       */
+    /* ---------------------------------------------------------------------- */
 
     const { data: memberRows, error: membersError } = await supabase
       .from("trip_members")
@@ -188,6 +199,10 @@ export async function GET(request: Request) {
       })
       .filter(Boolean) as ExpenseMember[];
 
+    /* ---------------------------------------------------------------------- */
+    /* Load splits ONLY belonging to expenses from this trip                 */
+    /* ---------------------------------------------------------------------- */
+
     const expenseIds = (expenses ?? []).map(
       (expense) => expense.id
     );
@@ -195,19 +210,18 @@ export async function GET(request: Request) {
     let splits: any[] = [];
 
     if (expenseIds.length > 0) {
-      const { data: splitRows, error: splitsError } =
-        await supabase
-          .from("expense_splits")
-          .select(
-            `
-            id,
-            expense_id,
-            participant_id,
-            split_type,
-            amount
-            `
-          )
-          .in("expense_id", expenseIds);
+      const { data: splitRows, error: splitsError } = await supabase
+        .from("expense_splits")
+        .select(
+          `
+          id,
+          expense_id,
+          participant_id,
+          split_type,
+          amount
+          `
+        )
+        .in("expense_id", expenseIds);
 
       if (splitsError) {
         throw splitsError;
@@ -559,6 +573,10 @@ export async function DELETE(request: Request) {
       );
     }
 
+    /* ---------------------------------------------------------------------- */
+    /* Verify membership in THIS trip                                        */
+    /* ---------------------------------------------------------------------- */
+
     const membership = await verifyTripMember(
       supabase,
       tripId,
@@ -573,6 +591,10 @@ export async function DELETE(request: Request) {
         { status: 403 }
       );
     }
+
+    /* ---------------------------------------------------------------------- */
+    /* Delete only if expense belongs to THIS trip                            */
+    /* ---------------------------------------------------------------------- */
 
     const { data: expense, error: findError } =
       await supabase

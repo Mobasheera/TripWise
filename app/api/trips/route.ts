@@ -16,6 +16,6 @@ export async function POST(request: Request) {
       message: "Create trip here",
       trip: body,
     },
-    { status: 201 }
+    { status: 201 },
   );
 }
