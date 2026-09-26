@@ -393,7 +393,7 @@ export async function saveProfile(
   let cleanName: string;
   let cleanEmail = user.email ?? "";
   let cleanAvatar: string | null = null;
-  let cleanUpiId: string | null = null;
+  let cleanUpiId = "Cash";
 
   /**
    * New onboarding profile page.
@@ -660,41 +660,6 @@ export async function saveUpiId(upiId: string) {
   }
 }
 
-/**
- * ---------------------------------------------------------------------------
- * Clear UPI ID
- * ---------------------------------------------------------------------------
- */
-
-export async function clearUpiId() {
-  const supabase = getSupabaseBrowser();
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError) {
-    throw authError;
-  }
-
-  if (!user) {
-    throw new Error(
-      "You need to sign in first."
-    );
-  }
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      upi_id: null,
-    })
-    .eq("id", user.id);
-
-  if (error) {
-    throw error;
-  }
-}
 
 /**
  * ---------------------------------------------------------------------------
