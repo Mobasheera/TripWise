@@ -1,0 +1,1 @@
+export function TripCard({ name, members = 0 }: { name: string; members?: number }) { return <div className="rounded-xl border bg-white p-5"><b>{name}</b><p className="text-sm text-slate-500">{members} members</p></div>; }

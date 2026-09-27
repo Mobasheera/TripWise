@@ -1,0 +1,1 @@
+export function SettlementTable() { return <div className="rounded-2xl border bg-white p-6"><h2 className="font-semibold">Who pays whom?</h2><div className="mt-4 rounded-lg bg-slate-50 p-4">Pradnyeel → Rahul · ₹2,000</div></div>; }

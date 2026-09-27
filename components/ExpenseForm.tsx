@@ -1,0 +1,1 @@
+export function ExpenseForm() { return <form className="space-y-3"><input className="w-full rounded-lg border p-3" placeholder="Expense title" /><input className="w-full rounded-lg border p-3" placeholder="Amount" type="number" /><button className="rounded-lg bg-slate-900 px-4 py-2 text-white">Save expense</button></form>; }

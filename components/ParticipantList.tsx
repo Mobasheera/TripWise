@@ -1,0 +1,1 @@
+export function ParticipantList() { return <div className="rounded-2xl border bg-white p-5"><h2 className="font-semibold">Participants</h2><ul className="mt-3 space-y-2 text-sm"><li>Rahul</li><li>Pradnyeel</li><li>Amit</li><li>Sahil</li></ul></div>; }

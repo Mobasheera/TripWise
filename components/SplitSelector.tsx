@@ -1,0 +1,1 @@
+export function SplitSelector() { return <select className="w-full rounded-lg border p-3"><option>Equal</option><option>Participant Based</option><option>Shared Room</option><option>Activity Based</option><option>Organizer Paid</option></select>; }
