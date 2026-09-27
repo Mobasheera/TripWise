@@ -49,6 +49,7 @@ type Trip = {
   destination: string | null;
   start_date: string | null;
   end_date: string | null;
+  created_by?: string | null;
 };
 
 type Profile = {
@@ -402,7 +403,8 @@ export default function BookingsPage() {
               name,
               destination,
               start_date,
-              end_date
+              end_date,
+              created_by
             `
           )
           .eq("id", tripId)
@@ -467,9 +469,33 @@ export default function BookingsPage() {
           );
         }
 
-        setMembers(
-          (memberData || []) as unknown as Member[]
-        );
+        const loadedMembers =
+          (memberData || []) as unknown as Member[];
+
+        // Legacy protection: the trip creator is always participant #1.
+        const creatorId = (tripData as Trip).created_by;
+        if (creatorId && !loadedMembers.some((member) => member.user_id === creatorId)) {
+          const { data: creatorProfile, error: creatorProfileError } =
+            await supabase
+              .from("profiles")
+              .select("id, name, email, avatar_url")
+              .eq("id", creatorId)
+              .maybeSingle();
+
+          if (creatorProfileError) {
+            throw creatorProfileError;
+          }
+
+          loadedMembers.unshift({
+            id: `legacy-owner-${tripId}`,
+            trip_id: tripId,
+            user_id: creatorId,
+            role: "organizer",
+            profile: creatorProfile || { id: creatorId },
+          });
+        }
+
+        setMembers(loadedMembers);
 
         /*
          * ------------------------------------------------------------

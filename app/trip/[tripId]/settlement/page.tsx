@@ -313,10 +313,33 @@ export default function SettlementPage() {
           throw memberResult.error;
         }
 
-        setMembers(
-          (memberResult.data ||
-            []) as unknown as Member[]
-        );
+        const loadedMembers =
+          (memberResult.data || []) as unknown as Member[];
+
+        // Legacy protection: the trip creator is always participant #1.
+        const creatorId = tripResult.data.created_by;
+        if (creatorId && !loadedMembers.some((member) => member.user_id === creatorId)) {
+          const { data: creatorProfile, error: creatorProfileError } =
+            await supabase
+              .from("profiles")
+              .select("id, name, email, avatar_url, upi_id")
+              .eq("id", creatorId)
+              .maybeSingle();
+
+          if (creatorProfileError) {
+            throw creatorProfileError;
+          }
+
+          loadedMembers.unshift({
+            id: `legacy-owner-${tripId}`,
+            trip_id: tripId,
+            user_id: creatorId,
+            role: "organizer",
+            profile: creatorProfile || { id: creatorId },
+          });
+        }
+
+        setMembers(loadedMembers);
 
         /* ------------------------------------------------------------------ */
         /* EXPENSES                                                            */

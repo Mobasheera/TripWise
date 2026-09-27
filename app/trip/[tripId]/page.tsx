@@ -408,10 +408,35 @@ export default function TripOverviewPage() {
             throw memberResult.error;
           }
 
-          setMembers(
-            (memberResult.data ||
-              []) as unknown as Member[]
-          );
+          const loadedMembers =
+            (memberResult.data || []) as unknown as Member[];
+
+          // Legacy protection: older trips can exist without the organizer
+          // being present in trip_members. The trip creator is still a
+          // participant and must appear in every participant view.
+          const creatorId = tripResult.data.created_by;
+          if (creatorId && !loadedMembers.some((member) => member.user_id === creatorId)) {
+            const { data: creatorProfile, error: creatorProfileError } =
+              await supabase
+                .from("profiles")
+                .select("id, name, email, avatar_url, upi_id")
+                .eq("id", creatorId)
+                .maybeSingle();
+
+            if (creatorProfileError) {
+              throw creatorProfileError;
+            }
+
+            loadedMembers.unshift({
+              id: `legacy-owner-${tripId}`,
+              trip_id: tripId,
+              user_id: creatorId,
+              role: "organizer",
+              profile: creatorProfile || { id: creatorId },
+            });
+          }
+
+          setMembers(loadedMembers);
 
           /* ---------------------------------------------------------------- */
           /* EXPENSES                                                          */
@@ -819,13 +844,22 @@ export default function TripOverviewPage() {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                loadTrip(true);
-                loadLiveData();
-              }}
-              disabled={
+            <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+              <Link
+                href={`/trip/${tripId}/digital-twin`}
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-sm font-bold backdrop-blur transition hover:bg-white/15"
+              >
+                <Sparkles size={15} />
+                Digital Twin
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => {
+                  loadTrip(true);
+                  loadLiveData();
+                }}
+                disabled={
                 refreshing ||
                 liveLoading
               }
@@ -841,8 +875,9 @@ export default function TripOverviewPage() {
                 }
               />
 
-              Refresh
-            </button>
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -1015,6 +1050,18 @@ export default function TripOverviewPage() {
                 : "s"
             }`}
             accent="olive"
+          />
+
+          <FeatureCard
+            href={`/trip/${tripId}/digital-twin`}
+            icon={
+              <Sparkles size={21} />
+            }
+            eyebrow="Simulation"
+            title="Digital Twin"
+            description="Test weather what-if scenarios against this trip."
+            stat="Run simulation"
+            accent="green"
           />
         </div>
       </section>

@@ -73,7 +73,21 @@ async function getAuthenticatedSupabase(tripId: string) {
   }
 
   if (!member) {
-    throw new Error("You are not a member of this trip.");
+    // The trip creator is participant #1. Keep legacy trips usable even
+    // when the organizer membership row was not created.
+    const { data: trip, error: tripError } = await supabase
+      .from("trips")
+      .select("created_by")
+      .eq("id", tripId)
+      .maybeSingle();
+
+    if (tripError) {
+      throw new Error(tripError.message);
+    }
+
+    if (trip?.created_by !== user.id) {
+      throw new Error("You are not a member of this trip.");
+    }
   }
 
   return supabase;

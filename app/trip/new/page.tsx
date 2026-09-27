@@ -325,9 +325,6 @@ export default function NewTripPage() {
           .select()
           .single();
 
-          router.push(`/trip/${trip.id}`);
-router.refresh();
-
       if (tripError) {
         throw tripError;
       }

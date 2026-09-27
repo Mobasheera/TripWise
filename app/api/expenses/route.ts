@@ -77,7 +77,32 @@ async function verifyTripMember(
     throw error;
   }
 
-  return data;
+  if (data) {
+    return data;
+  }
+
+  // Legacy-trip protection: the creator is participant #1 even if an
+  // older trip was created before the organizer membership row existed.
+  const { data: trip, error: tripError } = await supabase
+    .from("trips")
+    .select("id, created_by")
+    .eq("id", tripId)
+    .maybeSingle();
+
+  if (tripError) {
+    throw tripError;
+  }
+
+  if (trip?.created_by === userId) {
+    return {
+      id: `legacy-owner-${tripId}`,
+      trip_id: tripId,
+      user_id: userId,
+      role: "organizer",
+    };
+  }
+
+  return null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -187,6 +212,39 @@ export async function GET(request: Request) {
         };
       })
       .filter(Boolean) as ExpenseMember[];
+
+    // Keep the organizer visible for legacy trips where the trip_members
+    // row is missing. This also makes the expense splitter count correctly.
+    const { data: tripRecord, error: tripRecordError } = await supabase
+      .from("trips")
+      .select("created_by")
+      .eq("id", tripId)
+      .maybeSingle();
+
+    if (tripRecordError) {
+      throw tripRecordError;
+    }
+
+    if (tripRecord?.created_by && !members.some((member) => member.id === tripRecord.created_by)) {
+      const { data: creatorProfile, error: creatorProfileError } = await supabase
+        .from("profiles")
+        .select("id, name, email, upi_id")
+        .eq("id", tripRecord.created_by)
+        .maybeSingle();
+
+      if (creatorProfileError) {
+        throw creatorProfileError;
+      }
+
+      if (creatorProfile?.id) {
+        members.unshift({
+          id: creatorProfile.id,
+          name: creatorProfile.name ?? null,
+          email: creatorProfile.email ?? null,
+          upi_id: creatorProfile.upi_id ?? null,
+        });
+      }
+    }
 
     const expenseIds = (expenses ?? []).map(
       (expense) => expense.id
@@ -340,6 +398,22 @@ export async function POST(request: Request) {
           .filter(Boolean)
       )
     );
+
+    // The creator remains a participant even when a legacy trip is missing
+    // the organizer row in trip_members.
+    const { data: tripRecord, error: tripRecordError } = await supabase
+      .from("trips")
+      .select("created_by")
+      .eq("id", tripId)
+      .maybeSingle();
+
+    if (tripRecordError) {
+      throw tripRecordError;
+    }
+
+    if (tripRecord?.created_by && !tripMemberIds.includes(tripRecord.created_by)) {
+      tripMemberIds.unshift(tripRecord.created_by);
+    }
 
     if (tripMemberIds.length === 0) {
       return NextResponse.json(

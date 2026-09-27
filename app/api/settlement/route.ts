@@ -142,7 +142,21 @@ async function loadSettlement(
   }
 
   if (!viewerMembership) {
-    throw new Error("You are not a member of this trip.");
+    // Legacy-trip protection: the creator is participant #1 even if the
+    // organizer membership row is missing from trip_members.
+    const { data: tripRecord, error: tripRecordError } = await supabase
+      .from("trips")
+      .select("created_by")
+      .eq("id", tripId)
+      .maybeSingle();
+
+    if (tripRecordError) {
+      throw tripRecordError;
+    }
+
+    if (tripRecord?.created_by !== user.id) {
+      throw new Error("You are not a member of this trip.");
+    }
   }
 
   const [
@@ -238,6 +252,42 @@ async function loadSettlement(
 
   const members =
     (memberResult.data ?? []) as unknown as Member[];
+
+  // Include the trip creator when an older trip has no organizer row.
+  const { data: tripRecord, error: tripRecordError } = await supabase
+    .from("trips")
+    .select("created_by")
+    .eq("id", tripId)
+    .maybeSingle();
+
+  if (tripRecordError) {
+    throw tripRecordError;
+  }
+
+  if (tripRecord?.created_by && !members.some((member) => member.user_id === tripRecord.created_by)) {
+    const { data: creatorProfile, error: creatorProfileError } = await supabase
+      .from("profiles")
+      .select("id, name, email, upi_id")
+      .eq("id", tripRecord.created_by)
+      .maybeSingle();
+
+    if (creatorProfileError) {
+      throw creatorProfileError;
+    }
+
+    members.unshift({
+      id: `legacy-owner-${tripId}`,
+      trip_id: tripId,
+      user_id: tripRecord.created_by,
+      role: "organizer",
+      profiles: creatorProfile || {
+        id: tripRecord.created_by,
+        name: null,
+        email: null,
+        upi_id: null,
+      },
+    });
+  }
 
   const expenses =
     (expenseResult.data ?? []) as Expense[];
@@ -779,6 +829,20 @@ export async function POST(
             member.user_id
         )
       );
+
+    const { data: tripRecord, error: tripRecordError } = await supabase
+      .from("trips")
+      .select("created_by")
+      .eq("id", tripId)
+      .maybeSingle();
+
+    if (tripRecordError) {
+      throw tripRecordError;
+    }
+
+    if (tripRecord?.created_by) {
+      memberIds.add(tripRecord.created_by);
+    }
 
     if (
       !memberIds.has(

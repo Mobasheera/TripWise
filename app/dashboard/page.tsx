@@ -510,10 +510,28 @@ export default function DashboardPage() {
           []) as Booking[];
 
       const loadedMembers =
-        (memberResult.data ??
-          []) as unknown as TripMember[];
+        (memberResult.data ?? []) as unknown as TripMember[];
 
-      /* --------------------------------------------------------------- */
+      // The trip creator is participant #1. Older trips may not have
+      // an organizer row in trip_members, so synthesize it for display.
+      if (!loadedMembers.some((member) => member.user_id === user.id)) {
+        loadedMembers.unshift({
+          id: `legacy-owner-${activeTripId}`,
+          trip_id: activeTripId,
+          user_id: user.id,
+          role: "organizer",
+          profile: {
+            id: user.id,
+            name:
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              user.email?.split("@")[0] ||
+              "Trip Organizer",
+            email: user.email || null,
+          },
+        });
+      }
+
       /* ALL EXPENSES                                                    */
       /* --------------------------------------------------------------- */
 
@@ -1229,6 +1247,15 @@ export default function DashboardPage() {
             >
               Trip Summary
             </SidebarItem>
+
+            {activeTripId && (
+              <SidebarItem
+                href={`/trip/${activeTripId}/digital-twin`}
+                icon={<Sparkles size={19} />}
+              >
+                Digital Twin
+              </SidebarItem>
+            )}
           </nav>
 
           {/* TRAVEL CARD */}
@@ -1337,6 +1364,15 @@ export default function DashboardPage() {
             >
               Trip Summary
             </SidebarItem>
+
+            {activeTripId && (
+              <SidebarItem
+                href={`/trip/${activeTripId}/digital-twin`}
+                icon={<Sparkles size={18} />}
+              >
+                Digital Twin
+              </SidebarItem>
+            )}
 
             <SidebarItem
               href="/profile"

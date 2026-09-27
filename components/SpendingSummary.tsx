@@ -14,6 +14,7 @@ import {
   RefreshCw,
   TrendingUp,
   WalletCards,
+  Sparkles,
 } from "lucide-react";
 import { getAccessibleTrips } from "@/lib/tripAccess";
 import TripSidebar from "@/components/TripSidebar";
@@ -584,6 +585,14 @@ export default function SpendingSummary({
                   Settlement
                 </Link>
 
+                <Link
+                  href={`/trip/${selectedTripId}/digital-twin`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#355244]/15 bg-[#eef3ef] px-4 py-2 text-xs font-bold text-[#355244] transition hover:bg-[#e1ebe4]"
+                >
+                  <Sparkles size={12} />
+                  Digital Twin
+                </Link>
+
                 <span className="rounded-full bg-[#191a18] px-4 py-2 text-xs font-bold text-white">
                   Spending Summary
                 </span>
@@ -593,6 +602,33 @@ export default function SpendingSummary({
                 <SummaryLoader text="Calculating your spending..." />
               ) : (
                 <>
+                  <Link
+                    href={`/trip/${selectedTripId}/digital-twin`}
+                    className="mb-6 block rounded-[28px] border border-[#b9c9be] bg-[#edf3ee] p-5 transition hover:-translate-y-0.5 hover:bg-[#e5eee7] md:p-6"
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#355244] text-white">
+                          <Sparkles size={18} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#52705f]">
+                            Trip simulation
+                          </p>
+                          <h3 className="mt-1 font-serif text-2xl text-[#26382f]">
+                            Test weather what-if scenarios
+                          </h3>
+                          <p className="mt-1 max-w-2xl text-xs leading-5 text-[#617167]">
+                            Open this trip&apos;s Digital Twin to simulate rainfall, temperature, storms and travel difficulty without changing the saved itinerary.
+                          </p>
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-[#355244] px-4 py-2 text-xs font-bold text-white">
+                        Open simulation →
+                      </span>
+                    </div>
+                  </Link>
+
                   <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <MetricCard
                       icon={

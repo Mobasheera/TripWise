@@ -13,6 +13,7 @@ import {
   Settings,
   User,
   WalletCards,
+  Sparkles,
 } from "lucide-react";
 import { getAccessibleTrips } from "@/lib/tripAccess";
 
@@ -181,6 +182,16 @@ export default function TripSidebar({
                 Trip Summary
               </Link>
 
+              {activeTripId && (
+                <Link
+                  href={`/trip/${activeTripId}/digital-twin`}
+                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-[#5e5a52] transition hover:bg-[#ece8dd] hover:text-[#191a18]"
+                >
+                  <Sparkles size={17} />
+                  Digital Twin
+                </Link>
+              )}
+
               {/* CREATE TRIP */}
               <Link
                 href="/trip/new"
@@ -235,6 +246,12 @@ export default function TripSidebar({
                 href={`/trip/${activeTripId}/summary`}
                 icon={<PieChart size={17} />}
                 label="Spending Summary"
+              />
+
+              <TripNavLink
+                href={`/trip/${activeTripId}/digital-twin`}
+                icon={<Sparkles size={17} />}
+                label="Digital Twin"
               />
             </div>
           </div>

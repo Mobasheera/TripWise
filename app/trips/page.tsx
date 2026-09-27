@@ -255,13 +255,27 @@ export default function MyTripsPage() {
               user_id: string;
             }[];
 
+          // The trip creator is participant #1, even for legacy trips that
+          // are missing the organizer row in trip_members.
+          for (const trip of uniqueTrips) {
+            if (trip.created_by) {
+              memberCounts[trip.id] = 1;
+            }
+          }
+
           for (const member of members) {
-            memberCounts[
-              member.trip_id
-            ] =
-              (memberCounts[
-                member.trip_id
-              ] || 0) + 1;
+            const ownerAlreadyCounted = uniqueTrips.some(
+              (trip) =>
+                trip.id === member.trip_id &&
+                trip.created_by === member.user_id
+            );
+
+            if (ownerAlreadyCounted) {
+              continue;
+            }
+
+            memberCounts[member.trip_id] =
+              (memberCounts[member.trip_id] || 0) + 1;
           }
         }
 
