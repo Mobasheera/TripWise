@@ -511,26 +511,25 @@ export default function DashboardPage() {
 
       const loadedMembers =
         (memberResult.data ?? []) as unknown as TripMember[];
-
-      // The trip creator is participant #1. Older trips may not have
-      // an organizer row in trip_members, so synthesize it for display.
-      if (!loadedMembers.some((member) => member.user_id === user.id)) {
-        loadedMembers.unshift({
-          id: `legacy-owner-${activeTripId}`,
-          trip_id: activeTripId,
-          user_id: user.id,
-          role: "organizer",
-          profile: {
-            id: user.id,
-            name:
-              user.user_metadata?.full_name ||
-              user.user_metadata?.name ||
-              user.email?.split("@")[0] ||
-              "Trip Organizer",
-            email: user.email || null,
-          },
-        });
-      }
+// The trip creator is participant #1. Older trips may not have
+// an organizer row in trip_members, so synthesize it for display.
+if (!loadedMembers.some((member) => member.user_id === user.id)) {
+  loadedMembers.unshift({
+    id: `legacy-owner-${activeTripId}`,
+    trip_id: activeTripId,
+    user_id: user.id,
+    role: "organizer",
+    profile: {
+      id: user.id,
+      name:
+        (user as any).user_metadata?.full_name ||
+        (user as any).user_metadata?.name ||
+        user.email?.split("@")[0] ||
+        "Trip Organizer",
+      email: user.email || null,
+    },
+  });
+}
 
       /* ALL EXPENSES                                                    */
       /* --------------------------------------------------------------- */
