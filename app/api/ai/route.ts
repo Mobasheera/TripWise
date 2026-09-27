@@ -512,58 +512,224 @@ export async function POST(request: Request) {
           billItemIds.has(item.item_id)
       );
 
+       /*
+     * ============================================================
+     * BUILD COMPACT AI CONTEXT
+     * ============================================================
+     *
+     * IMPORTANT:
+     * We deliberately do NOT send the entire database to Groq.
+     * This keeps the AI request below the free-tier token limit
+     * while preserving the actual TripWise data in Supabase.
+     */
+
+    const compactTrips = trips.map((trip) => ({
+      name: trip.name,
+      destination: trip.destination,
+      start_date: trip.start_date,
+      end_date: trip.end_date,
+    }));
+
+    // If no trip is selected, only send trip summaries.
+    // This lets the AI ask the user which trip they mean
+    // instead of receiving every expense/booking from every trip.
+    if (!selectedTripId) {
+      const context = {
+        user: {
+          name:
+            user.user_metadata?.full_name ||
+            user.user_metadata?.name ||
+            null,
+          email: user.email || null,
+        },
+
+        selected_trip_id: null,
+
+        trips: compactTrips,
+
+        message:
+          "No specific trip is selected. Use the trip summaries above. " +
+          "If the question requires trip-specific details, ask the user " +
+          "which trip they mean.",
+      };
+
+      return await callAIBackend({
+        question,
+        history: Array.isArray(history)
+          ? history.slice(-4).map((item: any) => ({
+              role: item?.role,
+              content: String(item?.content || "").slice(0, 1000),
+            }))
+          : [],
+        context,
+      });
+    }
+
     /*
      * ============================================================
-     * BUILD AI CONTEXT
+     * SELECTED TRIP ONLY
      * ============================================================
      */
 
+    const selectedTrip =
+      trips.find((trip) => trip.id === selectedTripId) || null;
+
+    const selectedMembers =
+      (membersResult.data || [])
+        .filter((member) => member.trip_id === selectedTripId)
+        .slice(0, 30)
+        .map((member) => {
+          const profile = Array.isArray(member.profiles)
+            ? member.profiles[0]
+            : member.profiles;
+
+          return {
+            name: profile?.name || "Traveler",
+            email: profile?.email || null,
+            role: member.role || null,
+            upi_id: profile?.upi_id || null,
+          };
+        });
+
+    const selectedExpenses =
+      (expensesResult.data || [])
+        .filter((expense) => expense.trip_id === selectedTripId)
+        .slice(0, 30)
+        .map((expense) => ({
+          title: expense.title,
+          amount: expense.amount,
+          category: expense.category,
+          paid_by: expense.paid_by,
+          expense_date: expense.expense_date,
+        }));
+
+    const selectedExpenseIds = new Set(
+      (expensesResult.data || [])
+        .filter((expense) => expense.trip_id === selectedTripId)
+        .map((expense) => expense.id)
+    );
+
+    const selectedSplits =
+      filteredSplits
+        .filter((split) => selectedExpenseIds.has(split.expense_id))
+        .slice(0, 50)
+        .map((split) => ({
+          expense_id: split.expense_id,
+          participant_id: split.participant_id,
+          split_type: split.split_type,
+          amount: split.amount,
+        }));
+
+    const selectedBookings =
+      (bookingsResult.data || [])
+        .filter((booking) => booking.trip_id === selectedTripId)
+        .slice(0, 30)
+        .map((booking) => ({
+          title: booking.title,
+          type: booking.type,
+          vendor: booking.vendor,
+          amount: booking.amount,
+          paid_by: booking.paid_by,
+          booking_date: booking.booking_date,
+          status: booking.status,
+        }));
+
+    const selectedBills =
+      (billsResult.data || [])
+        .filter((bill) => bill.trip_id === selectedTripId)
+        .slice(0, 20)
+        .map((bill) => ({
+          merchant: bill.merchant,
+          subtotal: bill.subtotal,
+          tax: bill.tax,
+          total: bill.total,
+          scan_status: bill.scan_status,
+          created_at: bill.created_at,
+        }));
+
+    const selectedBillIds = new Set(
+      (billsResult.data || [])
+        .filter((bill) => bill.trip_id === selectedTripId)
+        .map((bill) => bill.id)
+    );
+
+    const selectedBillItems =
+      filteredBillItems
+        .filter((item) => selectedBillIds.has(item.bill_id))
+        .slice(0, 50)
+        .map((item) => ({
+          bill_id: item.bill_id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+        }));
+
+  
+
+    const selectedPayments =
+      (paymentsResult.data || [])
+        .filter((payment) => payment.trip_id === selectedTripId)
+        .slice(0, 50)
+        .map((payment) => ({
+          payer_id: payment.payer_id,
+          receiver_id: payment.receiver_id,
+          amount: payment.amount,
+          status: payment.status,
+          created_at: payment.created_at,
+          completed_at: payment.completed_at,
+        }));
+
+    const selectedItinerary =
+      (itineraryResult.data || [])
+        .filter((item) => item.trip_id === selectedTripId)
+        .slice(0, 30)
+        .map((item) => ({
+          title: item.title,
+          item_date: item.item_date,
+          location: item.location,
+          type: item.type,
+        }));
+
     const context = {
       user: {
-        id: userId,
         name:
-          user.user_metadata
-            ?.full_name ||
-          user.user_metadata
-            ?.name ||
+          user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
           null,
-        email:
-          user.email || null,
+        email: user.email || null,
       },
 
-      selected_trip_id:
-        selectedTripId,
+      selected_trip_id: selectedTripId,
 
-      trips,
+      trip: selectedTrip
+        ? {
+            name: selectedTrip.name,
+            destination: selectedTrip.destination,
+            start_date: selectedTrip.start_date,
+            end_date: selectedTrip.end_date,
+          }
+        : null,
 
-      members:
-        membersResult.data || [],
-
-      expenses:
-        expensesResult.data || [],
-
-      expense_splits:
-        filteredSplits,
-
-      bookings:
-        bookingsResult.data || [],
-
-      bills:
-        billsResult.data || [],
-
-      bill_items:
-        filteredBillItems,
-
-      item_participants:
-        filteredItemParticipants,
-
-      payments:
-        paymentsResult.data || [],
-
-      itinerary:
-        itineraryResult.data || [],
+      members: selectedMembers,
+      expenses: selectedExpenses,
+      expense_splits: selectedSplits,
+      bookings: selectedBookings,
+      bills: selectedBills,
+      bill_items: selectedBillItems,
+      payments: selectedPayments,
+      itinerary: selectedItinerary,
     };
 
+    return await callAIBackend({
+      question,
+      history: Array.isArray(history)
+        ? history.slice(-4).map((item: any) => ({
+            role: item?.role,
+            content: String(item?.content || "").slice(0, 1000),
+          }))
+        : [],
+      context,
+    });
     /*
      * ============================================================
      * SEND VERIFIED DATA TO AI BACKEND
