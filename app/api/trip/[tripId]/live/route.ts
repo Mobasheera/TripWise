@@ -55,10 +55,7 @@ function cleanText(value: string) {
     .trim();
 }
 
-function extractTag(
-  block: string,
-  tag: string
-) {
+function extractTag(block: string, tag: string) {
   const regex = new RegExp(
     `<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`,
     "i"
@@ -66,9 +63,7 @@ function extractTag(
 
   const match = block.match(regex);
 
-  return match?.[1]
-    ? cleanText(match[1])
-    : "";
+  return match?.[1] ? cleanText(match[1]) : "";
 }
 
 function decodeXml(value: string) {
@@ -82,21 +77,15 @@ function decodeXml(value: string) {
       String.fromCharCode(Number(code))
     )
     .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
-      String.fromCharCode(
-        parseInt(code, 16)
-      )
+      String.fromCharCode(parseInt(code, 16))
     );
 }
 
-function formatGoogleNewsQuery(
-  destination: string
-) {
+function formatGoogleNewsQuery(destination: string) {
   return `"${destination}"`;
 }
 
-function safeDate(
-  value: string | null
-) {
+function safeDate(value: string | null) {
   if (!value) return null;
 
   const date = new Date(value);
@@ -135,6 +124,12 @@ async function fetchNews(
     });
 
     if (!response.ok) {
+      console.error(
+        "Google News request failed:",
+        response.status,
+        response.statusText
+      );
+
       return [];
     }
 
@@ -176,13 +171,17 @@ async function fetchNews(
           title:
             decodeXml(title) ||
             "Untitled article",
+
           link:
             decodeXml(link),
+
           source:
             decodeXml(source) ||
             "News",
+
           publishedAt:
             safeDate(published),
+
           description:
             decodeXml(description),
         };
@@ -229,6 +228,12 @@ async function fetchSocial(
     });
 
     if (!response.ok) {
+      console.error(
+        "Bluesky request failed:",
+        response.status,
+        response.statusText
+      );
+
       return [];
     }
 
@@ -271,34 +276,41 @@ async function fetchSocial(
         return {
           uri:
             post?.uri || "",
+
           text:
-            record?.text ||
-            "",
+            record?.text || "",
+
           authorName:
             author?.displayName ||
             handle ||
             "Bluesky user",
+
           authorHandle:
             handle
               ? `@${handle}`
               : "",
+
           createdAt:
             safeDate(
               record?.createdAt ||
                 null
             ),
+
           likeCount:
             Number(
               post?.likeCount || 0
             ),
+
           repostCount:
             Number(
               post?.repostCount || 0
             ),
+
           replyCount:
             Number(
               post?.replyCount || 0
             ),
+
           url,
         };
       })
@@ -326,6 +338,11 @@ async function fetchWeather(
   endDate: string | null
 ) {
   try {
+    /*
+     * STEP 1:
+     * Convert the trip destination into coordinates.
+     */
+
     const geoUrl =
       `https://geocoding-api.open-meteo.com/v1/search` +
       `?name=${encodeURIComponent(destination)}` +
@@ -333,14 +350,41 @@ async function fetchWeather(
       `&language=en` +
       `&format=json`;
 
+    console.log(
+      "Weather geocoding request:",
+      geoUrl
+    );
+
     const geoResponse =
       await fetch(geoUrl, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent":
+            "TripWise/1.0 weather service",
+        },
         cache: "no-store",
       });
 
     if (!geoResponse.ok) {
+      const errorBody =
+        await geoResponse.text();
+
+      console.error(
+        "Open-Meteo geocoding failed:",
+        {
+          status:
+            geoResponse.status,
+
+          statusText:
+            geoResponse.statusText,
+
+          body:
+            errorBody,
+        }
+      );
+
       throw new Error(
-        "Unable to locate destination."
+        `Unable to locate destination (${geoResponse.status})`
       );
     }
 
@@ -348,7 +392,9 @@ async function fetchWeather(
       await geoResponse.json();
 
     const results: GeoResult[] =
-      Array.isArray(geoData?.results)
+      Array.isArray(
+        geoData?.results
+      )
         ? geoData.results
         : [];
 
@@ -362,6 +408,14 @@ async function fetchWeather(
       typeof location.longitude !==
         "number"
     ) {
+      console.error(
+        "Open-Meteo returned no usable location:",
+        {
+          destination,
+          geoData,
+        }
+      );
+
       throw new Error(
         "Destination could not be located."
       );
@@ -373,45 +427,140 @@ async function fetchWeather(
     const longitude =
       location.longitude;
 
+    console.log(
+      "Weather coordinates:",
+      {
+        destination,
+        latitude,
+        longitude,
+      }
+    );
+
+    /*
+     * STEP 2:
+     * Fetch the actual weather forecast.
+     */
+
     const forecastUrl =
       `https://api.open-meteo.com/v1/forecast` +
-      `?latitude=${latitude}` +
-      `&longitude=${longitude}` +
+      `?latitude=${encodeURIComponent(
+        String(latitude)
+      )}` +
+      `&longitude=${encodeURIComponent(
+        String(longitude)
+      )}` +
       `&timezone=auto` +
       `&forecast_days=16` +
       `&current=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m` +
       `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,sunrise,sunset`;
 
+    console.log(
+      "Weather forecast request:",
+      forecastUrl
+    );
+
     const weatherResponse =
-      await fetch(forecastUrl, {
-        cache: "no-store",
-      });
+      await fetch(
+        forecastUrl,
+        {
+          headers: {
+            Accept:
+              "application/json",
+            "User-Agent":
+              "TripWise/1.0 weather service",
+          },
+          cache: "no-store",
+        }
+      );
 
     if (!weatherResponse.ok) {
+      const errorBody =
+        await weatherResponse.text();
+
+      console.error(
+        "Open-Meteo weather API failed:",
+        {
+          status:
+            weatherResponse.status,
+
+          statusText:
+            weatherResponse.statusText,
+
+          body:
+            errorBody,
+
+          latitude,
+          longitude,
+        }
+      );
+
       throw new Error(
-        "Weather service unavailable."
+        `Weather service unavailable (${weatherResponse.status})`
       );
     }
 
     const weather =
       await weatherResponse.json();
 
+    /*
+     * STEP 3:
+     * Validate that Open-Meteo actually returned
+     * the expected weather structure.
+     */
+
+    if (
+      !weather ||
+      typeof weather !== "object"
+    ) {
+      console.error(
+        "Open-Meteo returned invalid weather data:",
+        weather
+      );
+
+      throw new Error(
+        "Invalid weather response."
+      );
+    }
+
+    console.log(
+      "Weather successfully fetched:",
+      {
+        destination,
+        latitude,
+        longitude,
+        timezone:
+          weather?.timezone,
+      }
+    );
+
+    /*
+     * STEP 4:
+     * Return the same structure expected
+     * by the existing Trip Overview page.
+     */
+
     return {
       location: {
         name:
           location.name ||
           destination,
+
         country:
           location.country ||
           "",
+
         countryCode:
           location.country_code ||
           "",
+
         admin1:
           location.admin1 ||
           "",
+
         latitude,
+
         longitude,
+
         timezone:
           location.timezone ||
           weather.timezone ||
@@ -423,22 +572,27 @@ async function fetchWeather(
           weather?.current
             ?.temperature_2m ??
           null,
+
         apparentTemperature:
           weather?.current
             ?.apparent_temperature ??
           null,
+
         humidity:
           weather?.current
             ?.relative_humidity_2m ??
           null,
+
         precipitation:
           weather?.current
             ?.precipitation ??
           null,
+
         weatherCode:
           weather?.current
             ?.weather_code ??
           null,
+
         windSpeed:
           weather?.current
             ?.wind_speed_10m ??
@@ -449,32 +603,41 @@ async function fetchWeather(
         time:
           weather?.daily?.time ||
           [],
+
         weatherCode:
-          weather?.daily?.weather_code ||
+          weather?.daily
+            ?.weather_code ||
           [],
+
         max:
           weather?.daily
             ?.temperature_2m_max ||
           [],
+
         min:
           weather?.daily
             ?.temperature_2m_min ||
           [],
+
         precipitationProbability:
           weather?.daily
             ?.precipitation_probability_max ||
           [],
+
         precipitation:
           weather?.daily
             ?.precipitation_sum ||
           [],
+
         wind:
           weather?.daily
             ?.wind_speed_10m_max ||
           [],
+
         sunrise:
           weather?.daily?.sunrise ||
           [],
+
         sunset:
           weather?.daily?.sunset ||
           [],
@@ -491,9 +654,22 @@ async function fetchWeather(
   } catch (error) {
     console.error(
       "Weather fetch failed:",
-      error
+      {
+        destination,
+        startDate,
+        endDate,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      }
     );
 
+    /*
+     * Keep the existing API behavior:
+     * weather becomes null instead of
+     * breaking the entire Trip Overview page.
+     */
     return null;
   }
 }
@@ -528,6 +704,10 @@ export async function GET(
       );
     }
 
+    /*
+     * Supabase environment variables.
+     */
+
     const supabaseUrl =
       process.env
         .NEXT_PUBLIC_SUPABASE_URL;
@@ -542,6 +722,10 @@ export async function GET(
       !supabaseUrl ||
       !supabaseKey
     ) {
+      console.error(
+        "Supabase environment variables are missing."
+      );
+
       return NextResponse.json(
         {
           error:
@@ -552,6 +736,10 @@ export async function GET(
         }
       );
     }
+
+    /*
+     * Create the authenticated Supabase server client.
+     */
 
     const cookieStore =
       await cookies();
@@ -584,13 +772,21 @@ export async function GET(
                   }
                 );
               } catch {
-                // Server components may not always allow
-                // cookie mutation. The read still works.
+                /*
+                 * Cookie mutation may not always
+                 * be available in this context.
+                 *
+                 * Reading the session still works.
+                 */
               }
             },
           },
         }
       );
+
+    /*
+     * Check authentication.
+     */
 
     const {
       data: {
@@ -604,6 +800,11 @@ export async function GET(
       authError ||
       !user
     ) {
+      console.error(
+        "Live trip authentication failed:",
+        authError
+      );
+
       return NextResponse.json(
         {
           error:
@@ -614,6 +815,10 @@ export async function GET(
         }
       );
     }
+
+    /*
+     * Load the trip.
+     */
 
     const {
       data: trip,
@@ -662,6 +867,12 @@ export async function GET(
       );
     }
 
+    /*
+     * If there is no destination,
+     * return the trip successfully without
+     * attempting external weather/news/social calls.
+     */
+
     if (!trip.destination) {
       return NextResponse.json({
         trip: {
@@ -669,17 +880,39 @@ export async function GET(
           name: trip.name,
           destination: null,
         },
+
         weather: null,
+
         news: [],
+
         social: [],
+
         fetchedAt:
           new Date().toISOString(),
       });
     }
 
+    console.log(
+      "Loading live trip intelligence:",
+      {
+        tripId,
+        destination:
+          trip.destination,
+        startDate:
+          trip.start_date,
+        endDate:
+          trip.end_date,
+      }
+    );
+
     /*
-     * Run the three live sources together.
+     * Run weather, news and social requests
+     * independently and in parallel.
+     *
+     * A failure in one source does not break
+     * the other sources.
      */
+
     const [
       weather,
       news,
@@ -700,20 +933,42 @@ export async function GET(
       ),
     ]);
 
+    console.log(
+      "Live trip intelligence completed:",
+      {
+        tripId,
+
+        weatherAvailable:
+          Boolean(weather),
+
+        newsCount:
+          news.length,
+
+        socialCount:
+          social.length,
+      }
+    );
+
     return NextResponse.json({
       trip: {
         id: trip.id,
+
         name: trip.name,
+
         destination:
           trip.destination,
+
         startDate:
           trip.start_date,
+
         endDate:
           trip.end_date,
       },
 
       weather,
+
       news,
+
       social,
 
       fetchedAt:
