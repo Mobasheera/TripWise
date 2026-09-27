@@ -491,7 +491,12 @@ export default function BookingsPage() {
             trip_id: tripId,
             user_id: creatorId,
             role: "organizer",
-            profile: creatorProfile || { id: creatorId },
+            profile:
+  creatorProfile || {
+    id: creatorId,
+    name: null,
+    email: null,
+  },
           });
         }
 
