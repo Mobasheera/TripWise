@@ -41,7 +41,7 @@ import {
   getCurrentUser,
   getSupabase,
 } from "@/lib/supabase";
-
+import TripMap from "@/components/TripMapClient";
 /* ========================================================================== */
 /* TYPES                                                                      */
 /* ========================================================================== */
@@ -917,6 +917,20 @@ export default function TripOverviewPage() {
           loadLiveData
         }
       />
+
+      {/* ================================================================== */}
+{/* TRIP MAP                                                           */}
+{/* ================================================================== */}
+
+<TripMap
+  destination={trip.destination}
+  locations={itinerary
+    .map((item) => item.location)
+    .filter(
+      (location): location is string =>
+        Boolean(location?.trim())
+    )}
+/>
 
       {/* ================================================================== */}
       {/* FEATURE NAVIGATION                                                 */}
