@@ -80,13 +80,23 @@ Be helpful, accurate and concise.
 
 def ask_groq(user_prompt: str) -> str:
 
+    # Keep the request comfortably below Groq's
+    # 8,000 tokens/minute limit on the current tier.
+    MAX_INPUT_CHARS = 24000
+
+    if len(user_prompt) > MAX_INPUT_CHARS:
+        user_prompt = user_prompt[:MAX_INPUT_CHARS] + (
+            "\n\n[Some older TripWise context was shortened "
+            "to keep the AI request within the service limit.]"
+        )
+
     response = client.responses.create(
         model="openai/gpt-oss-20b",
         instructions=SYSTEM_PROMPT,
-        input=user_prompt
+        input=user_prompt,
+        max_output_tokens=700,
+        reasoning={"effort": "low"},
     )
 
     return response.output_text
-
-
 
