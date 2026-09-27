@@ -1,9 +1,7 @@
 "use client";
 
-// Leaflet's stylesheet is handled by the framework bundler, which may not
-// provide a TypeScript declaration for side-effect CSS imports.
-// @ts-expect-error CSS side-effect import has no declaration in this project.
 import "leaflet/dist/leaflet.css";
+
 import { useEffect, useState } from "react";
 import L from "leaflet";
 import {
@@ -28,6 +26,9 @@ type LocationResult = {
   coordinates: Coordinates;
 };
 
+/**
+ * Custom destination marker.
+ */
 const destinationIcon = L.divIcon({
   className: "",
   html: `
@@ -52,6 +53,9 @@ const destinationIcon = L.divIcon({
   popupAnchor: [0, -38],
 });
 
+/**
+ * Custom itinerary location marker.
+ */
 const locationIcon = L.divIcon({
   className: "",
   html: `
@@ -76,32 +80,46 @@ const locationIcon = L.divIcon({
   popupAnchor: [0, -30],
 });
 
+/**
+ * Geocode a location through our own Next.js API route.
+ *
+ * Keeping this request server-side means:
+ * - no geocoding API key is exposed in the browser
+ * - Render only needs to run the Next.js application
+ * - the client always talks to our own /api/geocode endpoint
+ */
 async function geocodeLocation(
   location: string
 ): Promise<Coordinates | null> {
   try {
-   const response = await fetch(
-  `/api/geocode?q=${encodeURIComponent(location)}`
-);
+    const response = await fetch(
+      `/api/geocode?q=${encodeURIComponent(location)}`
+    );
 
-if (!response.ok) {
-  return null;
-}
+    if (!response.ok) {
+      console.error(
+        `Geocoding request failed for "${location}" with status ${response.status}`
+      );
+      return null;
+    }
 
-const data = await response.json();
+    const data = await response.json();
 
-if (!data.result) {
-  return null;
-}
+    if (!data.result) {
+      return null;
+    }
 
-const lat = Number(data.result.lat);
-const lon = Number(data.result.lon);
+    const lat = Number(data.result.lat);
+    const lon = Number(data.result.lon);
 
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
       return null;
     }
 
-    return { lat, lon };
+    return {
+      lat,
+      lon,
+    };
   } catch (error) {
     console.error(
       `Unable to geocode location "${location}":`,
@@ -127,15 +145,23 @@ export default function TripMap({
 
   const [loading, setLoading] = useState(true);
 
+  /**
+   * Make sure the Leaflet map is only rendered in the browser.
+   */
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  /**
+   * Load destination and itinerary coordinates.
+   */
   useEffect(() => {
     let cancelled = false;
 
     async function loadMapData() {
       if (!destination?.trim()) {
+        setDestinationCoordinates(null);
+        setLocationResults([]);
         setLoading(false);
         return;
       }
@@ -143,10 +169,15 @@ export default function TripMap({
       try {
         setLoading(true);
 
+        /**
+         * First geocode the main trip destination.
+         */
         const destinationCoords =
           await geocodeLocation(destination);
 
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
 
         if (!destinationCoords) {
           setDestinationCoordinates(null);
@@ -156,6 +187,12 @@ export default function TripMap({
 
         setDestinationCoordinates(destinationCoords);
 
+        /**
+         * Remove:
+         * - empty locations
+         * - duplicate locations
+         * - locations identical to the destination
+         */
         const uniqueLocations = Array.from(
           new Set(
             locations
@@ -171,8 +208,16 @@ export default function TripMap({
 
         const results: LocationResult[] = [];
 
+        /**
+         * Geocode each itinerary location.
+         *
+         * Requests are intentionally sequential to avoid
+         * sending a large burst of requests to the geocoder.
+         */
         for (const location of uniqueLocations) {
-          if (cancelled) return;
+          if (cancelled) {
+            return;
+          }
 
           const coordinates =
             await geocodeLocation(location);
@@ -212,6 +257,10 @@ export default function TripMap({
     };
   }, [destination, locations]);
 
+  /**
+   * Prevent Leaflet from being evaluated/rendered before
+   * the browser has mounted.
+   */
   if (!mounted) {
     return (
       <div className="flex h-[420px] items-center justify-center rounded-[28px] border border-[#292a25]/10 bg-[#ebe8dc]">
@@ -222,13 +271,13 @@ export default function TripMap({
     );
   }
 
-  const visibleLocationCount =
-    destinationCoordinates
-      ? 1 + locationResults.length
-      : 0;
+  const visibleLocationCount = destinationCoordinates
+    ? 1 + locationResults.length
+    : 0;
 
   return (
     <section className="overflow-hidden rounded-[28px] border border-[#292a25]/10 bg-[#ebe8dc]">
+      {/* Header */}
       <div className="flex items-center justify-between border-b border-[#292a25]/10 px-6 py-5">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#777d72]">
@@ -252,6 +301,7 @@ export default function TripMap({
         </div>
       </div>
 
+      {/* Map */}
       <div className="relative h-[420px]">
         {loading && (
           <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-[#ebe8dc]">
