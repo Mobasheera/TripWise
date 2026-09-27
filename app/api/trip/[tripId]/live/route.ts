@@ -355,15 +355,15 @@ async function fetchWeather(
       geoUrl
     );
 
-    const geoResponse =
-      await fetch(geoUrl, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent":
-            "TripWise/1.0 weather service",
-        },
-        cache: "no-store",
-      });
+    const geoResponse = await fetch(geoUrl, {
+  headers: {
+    Accept: "application/json",
+    "User-Agent": "TripWise-Hackathon/1.0",
+  },
+  next: {
+    revalidate: 3600,
+  },
+});
 
     if (!geoResponse.ok) {
       const errorBody =
@@ -459,19 +459,15 @@ async function fetchWeather(
       forecastUrl
     );
 
-    const weatherResponse =
-      await fetch(
-        forecastUrl,
-        {
-          headers: {
-            Accept:
-              "application/json",
-            "User-Agent":
-              "TripWise/1.0 weather service",
-          },
-          cache: "no-store",
-        }
-      );
+    const weatherResponse = await fetch(forecastUrl, {
+  headers: {
+    Accept: "application/json",
+    "User-Agent": "TripWise-Hackathon/1.0",
+  },
+  next: {
+    revalidate: 600,
+  },
+});
 
     if (!weatherResponse.ok) {
       const errorBody =
